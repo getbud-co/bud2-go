@@ -4,6 +4,20 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
 };
 
+export interface ApiProblem {
+  type?: string;
+  title: string;
+  status: number;
+  detail?: string;
+}
+
+export class ApiError extends Error {
+  constructor(public readonly problem: ApiProblem) {
+    super(problem.detail ?? problem.title);
+    this.name = "ApiError";
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers, ...rest } = options;
 
@@ -17,7 +31,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   });
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`);
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json") || contentType.includes("application/problem+json")) {
+      const problem = (await response.json()) as ApiProblem;
+      throw new ApiError(problem);
+    }
+    throw new ApiError({ title: response.statusText, status: response.status });
   }
 
   return response.json() as Promise<T>;

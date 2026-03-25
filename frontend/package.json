@@ -9,6 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@fontsource/crimson-pro": "^5.2.8",
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/plus-jakarta-sans": "^5.2.8",
+    "@mdonangelo/bud-ds": "file:packages/bud-ds",
+    "@phosphor-icons/react": "^2.1.10",
     "next": "^15.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

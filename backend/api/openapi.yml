@@ -1,0 +1,192 @@
+openapi: "3.1.0"
+info:
+  title: bud2 API
+  version: "0.1.0"
+  description: API do SaaS bud2
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags: [System]
+      responses:
+        "200":
+          description: OK
+
+  /organizations:
+    get:
+      summary: List organizations
+      operationId: listOrganizations
+      tags: [Organizations]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [active, inactive] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrganizationListResponse" }
+
+    post:
+      summary: Create organization
+      operationId: createOrganization
+      tags: [Organizations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateOrganizationRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Organization" }
+        "409":
+          description: Slug already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProblemDetail" }
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProblemDetail" }
+
+  /organizations/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+
+    get:
+      summary: Get organization
+      operationId: getOrganization
+      tags: [Organizations]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Organization" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProblemDetail" }
+
+    put:
+      summary: Update organization
+      operationId: updateOrganization
+      tags: [Organizations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateOrganizationRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Organization" }
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProblemDetail" }
+        "409":
+          description: Slug already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProblemDetail" }
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProblemDetail" }
+
+components:
+  schemas:
+    Organization:
+      type: object
+      required: [id, name, slug, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    OrganizationListResponse:
+      type: object
+      required: [data, total, page, size]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Organization" }
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+        size:
+          type: integer
+
+    CreateOrganizationRequest:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+
+    UpdateOrganizationRequest:
+      type: object
+      required: [name, slug, status]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+
+    ProblemDetail:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string

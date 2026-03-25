@@ -1,23 +1,91 @@
 package main
 
 import (
-	"log"
+	"context"
+	"errors"
+	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
+	apispec "github.com/dsbraz/bud2/backend/api"
+	"github.com/dsbraz/bud2/backend/internal/config"
 	"github.com/dsbraz/bud2/backend/internal/handler"
+	"github.com/dsbraz/bud2/backend/internal/infra/postgres"
+	orguc "github.com/dsbraz/bud2/backend/internal/usecase/organization"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	cfg := config.Load()
+
+	if cfg.DatabaseURL == "" {
+		slog.Error("DATABASE_URL is required")
+		os.Exit(1)
 	}
 
-	router := handler.NewRouter()
+	// Structured logging
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
-	log.Printf("Starting server on :%s", port)
-	if err := http.ListenAndServe(":"+port, router); err != nil {
-		log.Fatal(err)
+	// Run migrations
+	runMigrations(cfg.DatabaseURL)
+
+	// Database connection pool
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		slog.Error("database ping failed", "error", err)
+		os.Exit(1)
+	}
+
+	// Infra
+	queries := postgres.New(pool)
+	orgRepo := postgres.NewOrganizationRepository(queries)
+
+	// Use cases
+	createOrg := orguc.NewCreateUseCase(orgRepo)
+	getOrg := orguc.NewGetUseCase(orgRepo)
+	listOrg := orguc.NewListUseCase(orgRepo)
+	updateOrg := orguc.NewUpdateUseCase(orgRepo)
+
+	// Handler + Router
+	orgHandler := handler.NewOrganizationHandler(createOrg, getOrg, listOrg, updateOrg)
+	router := handler.NewRouter(orgHandler, handler.RouterConfig{
+		Env:            cfg.Env,
+		AllowedOrigins: strings.Split(cfg.AllowedOrigins, ","),
+		OpenAPISpec:    apispec.Spec,
+	})
+
+	slog.Info("starting server", "port", cfg.Port)
+	if err := http.ListenAndServe(":"+cfg.Port, router); err != nil {
+		slog.Error("server error", "error", err)
+		os.Exit(1)
+	}
+}
+
+func runMigrations(databaseURL string) {
+	// golang-migrate pgx/v5 driver registers as "pgx5://" scheme
+	migrationURL := strings.Replace(databaseURL, "postgres://", "pgx5://", 1)
+	m, err := migrate.New("file://migrations", migrationURL)
+	if err != nil {
+		slog.Error("failed to initialize migrations", "error", err)
+		os.Exit(1)
+	}
+	defer m.Close()
+
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		slog.Error("failed to run migrations", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("migrations applied")
 }
