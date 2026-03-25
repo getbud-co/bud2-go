@@ -13,6 +13,7 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/handler"
 	"github.com/dsbraz/bud2/backend/internal/infra/postgres"
 	orguc "github.com/dsbraz/bud2/backend/internal/usecase/organization"
+	useruc "github.com/dsbraz/bud2/backend/internal/usecase/user"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -50,6 +51,7 @@ func main() {
 	// Infra
 	queries := postgres.New(pool)
 	orgRepo := postgres.NewOrganizationRepository(queries)
+	userRepo := postgres.NewUserRepository(queries)
 
 	// Use cases
 	createOrg := orguc.NewCreateUseCase(orgRepo)
@@ -57,9 +59,15 @@ func main() {
 	listOrg := orguc.NewListUseCase(orgRepo)
 	updateOrg := orguc.NewUpdateUseCase(orgRepo)
 
+	createUser := useruc.NewCreateUseCase(userRepo)
+	getUser := useruc.NewGetUseCase(userRepo)
+	listUser := useruc.NewListUseCase(userRepo)
+	updateUser := useruc.NewUpdateUseCase(userRepo)
+
 	// Handler + Router
 	orgHandler := handler.NewOrganizationHandler(createOrg, getOrg, listOrg, updateOrg)
-	router := handler.NewRouter(orgHandler, handler.RouterConfig{
+	userHandler := handler.NewUserHandler(createUser, getUser, listUser, updateUser)
+	router := handler.NewRouter(orgHandler, userHandler, handler.RouterConfig{
 		Env:            cfg.Env,
 		AllowedOrigins: strings.Split(cfg.AllowedOrigins, ","),
 		OpenAPISpec:    apispec.Spec,

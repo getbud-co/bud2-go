@@ -15,7 +15,7 @@ import {
   SidebarFooter,
   SidebarUser,
 } from "@mdonangelo/bud-ds";
-import { Buildings, Gear } from "@phosphor-icons/react";
+import { Buildings, Gear, Users } from "@phosphor-icons/react";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -47,6 +47,12 @@ export function AppShell({ children }: AppShellProps) {
           </SidebarGroup>
 
           <SidebarGroup label="Configurações">
+            <SidebarItem
+              icon={Users}
+              label="Usuários"
+              href="/settings/users"
+              active={pathname.startsWith("/settings/users")}
+            />
             <SidebarItem
               icon={Gear}
               label="Empresa"

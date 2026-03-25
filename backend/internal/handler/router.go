@@ -14,14 +14,13 @@ type RouterConfig struct {
 	OpenAPISpec    []byte
 }
 
-func NewRouter(orgHandler *OrganizationHandler, cfg RouterConfig) *chi.Mux {
+func NewRouter(orgHandler *OrganizationHandler, userHandler *UserHandler, cfg RouterConfig) *chi.Mux {
 	r := chi.NewRouter()
 
 	allowedOrigins := cfg.AllowedOrigins
 	if len(allowedOrigins) == 0 {
 		allowedOrigins = []string{"http://localhost:3000"}
 	}
-	// trim whitespace from each origin
 	for i, o := range allowedOrigins {
 		allowedOrigins[i] = strings.TrimSpace(o)
 	}
@@ -29,7 +28,7 @@ func NewRouter(orgHandler *OrganizationHandler, cfg RouterConfig) *chi.Mux {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Tenant-ID"},
 		AllowCredentials: true,
 	}))
 	r.Use(middleware.Logger)
@@ -48,6 +47,14 @@ func NewRouter(orgHandler *OrganizationHandler, cfg RouterConfig) *chi.Mux {
 		r.Get("/", orgHandler.List)
 		r.Get("/{id}", orgHandler.Get)
 		r.Put("/{id}", orgHandler.Update)
+	})
+
+	r.Route("/users", func(r chi.Router) {
+		r.Use(TenantMiddleware)
+		r.Post("/", userHandler.Create)
+		r.Get("/", userHandler.List)
+		r.Get("/{id}", userHandler.Get)
+		r.Put("/{id}", userHandler.Update)
 	})
 
 	return r
