@@ -2,8 +2,6 @@ package organization
 
 import (
 	"context"
-
-	"github.com/dsbraz/bud2/backend/internal/domain"
 )
 
 type ListCommand struct {
@@ -13,14 +11,14 @@ type ListCommand struct {
 }
 
 type ListUseCase struct {
-	repo domain.OrganizationRepository
+	repo Repository
 }
 
-func NewListUseCase(repo domain.OrganizationRepository) *ListUseCase {
+func NewListUseCase(repo Repository) *ListUseCase {
 	return &ListUseCase{repo: repo}
 }
 
-func (uc *ListUseCase) Execute(ctx context.Context, cmd ListCommand) (domain.OrganizationListResult, error) {
+func (uc *ListUseCase) Execute(ctx context.Context, cmd ListCommand) (ListResult, error) {
 	if cmd.Size <= 0 {
 		cmd.Size = 20
 	}
@@ -31,12 +29,12 @@ func (uc *ListUseCase) Execute(ctx context.Context, cmd ListCommand) (domain.Org
 		cmd.Page = 1
 	}
 
-	filter := domain.OrganizationListFilter{
+	filter := ListFilter{
 		Page: cmd.Page,
 		Size: cmd.Size,
 	}
 	if cmd.Status != nil {
-		s := domain.OrganizationStatus(*cmd.Status)
+		s := Status(*cmd.Status)
 		filter.Status = &s
 	}
 

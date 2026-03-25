@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
 	"github.com/google/uuid"
 )
 
@@ -16,14 +15,14 @@ type UpdateCommand struct {
 }
 
 type UpdateUseCase struct {
-	repo domain.OrganizationRepository
+	repo Repository
 }
 
-func NewUpdateUseCase(repo domain.OrganizationRepository) *UpdateUseCase {
+func NewUpdateUseCase(repo Repository) *UpdateUseCase {
 	return &UpdateUseCase{repo: repo}
 }
 
-func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*domain.Organization, error) {
+func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*Organization, error) {
 	existing, err := uc.repo.GetByID(ctx, cmd.ID)
 	if err != nil {
 		return nil, err
@@ -33,7 +32,7 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*domai
 
 	existing.Name = cmd.Name
 	existing.Slug = cmd.Slug
-	existing.Status = domain.OrganizationStatus(cmd.Status)
+	existing.Status = Status(cmd.Status)
 
 	if err := existing.Validate(); err != nil {
 		return nil, err
@@ -42,9 +41,9 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*domai
 	if originalSlug != cmd.Slug {
 		other, err := uc.repo.GetBySlug(ctx, cmd.Slug)
 		if err == nil && other.ID != cmd.ID {
-			return nil, domain.ErrOrganizationSlugExists
+			return nil, ErrSlugExists
 		}
-		if err != nil && !errors.Is(err, domain.ErrOrganizationNotFound) {
+		if err != nil && !errors.Is(err, ErrNotFound) {
 			return nil, err
 		}
 	}

@@ -1,4 +1,4 @@
-package handler
+package user
 
 import (
 	"context"
@@ -8,45 +8,62 @@ import (
 	"strconv"
 
 	"github.com/dsbraz/bud2/backend/internal/domain"
-	useruc "github.com/dsbraz/bud2/backend/internal/usecase/user"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
 // Use case interfaces
 
-type createUserUseCase interface {
-	Execute(ctx context.Context, cmd useruc.CreateCommand) (*domain.User, error)
+type createUseCase interface {
+	Execute(ctx context.Context, cmd CreateCommand) (*User, error)
 }
 
-type getUserUseCase interface {
-	Execute(ctx context.Context, tenantID domain.TenantID, id uuid.UUID) (*domain.User, error)
+type getUseCase interface {
+	Execute(ctx context.Context, tenantID domain.TenantID, id uuid.UUID) (*User, error)
 }
 
-type listUserUseCase interface {
-	Execute(ctx context.Context, cmd useruc.ListCommand) (domain.UserListResult, error)
+type listUseCase interface {
+	Execute(ctx context.Context, cmd ListCommand) (ListResult, error)
 }
 
-type updateUserUseCase interface {
-	Execute(ctx context.Context, cmd useruc.UpdateCommand) (*domain.User, error)
+type updateUseCase interface {
+	Execute(ctx context.Context, cmd UpdateCommand) (*User, error)
+}
+
+// Handler
+
+type Handler struct {
+	create createUseCase
+	get    getUseCase
+	list   listUseCase
+	update updateUseCase
+}
+
+func NewHandler(
+	create createUseCase,
+	get getUseCase,
+	list listUseCase,
+	update updateUseCase,
+) *Handler {
+	return &Handler{create: create, get: get, list: list, update: update}
 }
 
 // DTOs
 
-type createUserRequest struct {
+type createRequest struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 	Role  string `json:"role"`
 }
 
-type updateUserRequest struct {
+type updateRequest struct {
 	Name   string `json:"name"`
 	Email  string `json:"email"`
 	Role   string `json:"role"`
 	Status string `json:"status"`
 }
 
-type userResponse struct {
+type Response struct {
 	ID        string `json:"id"`
 	TenantID  string `json:"tenant_id"`
 	Name      string `json:"name"`
@@ -57,15 +74,15 @@ type userResponse struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
-type listUserResponse struct {
-	Data  []userResponse `json:"data"`
-	Total int64          `json:"total"`
-	Page  int            `json:"page"`
-	Size  int            `json:"size"`
+type ListResponse struct {
+	Data  []Response `json:"data"`
+	Total int64      `json:"total"`
+	Page  int        `json:"page"`
+	Size  int        `json:"size"`
 }
 
-func toUserResponse(u *domain.User) userResponse {
-	return userResponse{
+func toResponse(u *User) Response {
+	return Response{
 		ID:        u.ID.String(),
 		TenantID:  u.TenantID.String(),
 		Name:      u.Name,
@@ -77,52 +94,36 @@ func toUserResponse(u *domain.User) userResponse {
 	}
 }
 
-// Handler
+// Handlers
 
-type UserHandler struct {
-	create createUserUseCase
-	get    getUserUseCase
-	list   listUserUseCase
-	update updateUserUseCase
-}
-
-func NewUserHandler(
-	create createUserUseCase,
-	get getUserUseCase,
-	list listUserUseCase,
-	update updateUserUseCase,
-) *UserHandler {
-	return &UserHandler{create: create, get: get, list: list, update: update}
-}
-
-func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	tenantID, err := domain.TenantIDFromContext(r.Context())
 	if err != nil {
 		writeProblem(w, http.StatusUnauthorized, "Unauthorized", err.Error())
 		return
 	}
 
-	var req createUserRequest
+	var req createRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeProblem(w, http.StatusBadRequest, "Bad Request", "invalid JSON body")
 		return
 	}
 
-	user, err := h.create.Execute(r.Context(), useruc.CreateCommand{
+	user, err := h.create.Execute(r.Context(), CreateCommand{
 		TenantID: tenantID,
 		Name:     req.Name,
 		Email:    req.Email,
 		Role:     req.Role,
 	})
 	if err != nil {
-		handleUserError(w, err)
+		handleError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, toUserResponse(user))
+	writeJSON(w, http.StatusCreated, toResponse(user))
 }
 
-func (h *UserHandler) Get(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	tenantID, err := domain.TenantIDFromContext(r.Context())
 	if err != nil {
 		writeProblem(w, http.StatusUnauthorized, "Unauthorized", err.Error())
@@ -137,14 +138,14 @@ func (h *UserHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.get.Execute(r.Context(), tenantID, id)
 	if err != nil {
-		handleUserError(w, err)
+		handleError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toUserResponse(user))
+	writeJSON(w, http.StatusOK, toResponse(user))
 }
 
-func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	tenantID, err := domain.TenantIDFromContext(r.Context())
 	if err != nil {
 		writeProblem(w, http.StatusUnauthorized, "Unauthorized", err.Error())
@@ -161,7 +162,7 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 		size = 20
 	}
 
-	cmd := useruc.ListCommand{TenantID: tenantID, Page: page, Size: size}
+	cmd := ListCommand{TenantID: tenantID, Page: page, Size: size}
 	if s := q.Get("status"); s != "" {
 		cmd.Status = &s
 	}
@@ -175,12 +176,12 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items := make([]userResponse, len(result.Users))
+	items := make([]Response, len(result.Users))
 	for i := range result.Users {
-		items[i] = toUserResponse(&result.Users[i])
+		items[i] = toResponse(&result.Users[i])
 	}
 
-	writeJSON(w, http.StatusOK, listUserResponse{
+	writeJSON(w, http.StatusOK, ListResponse{
 		Data:  items,
 		Total: result.Total,
 		Page:  page,
@@ -188,7 +189,7 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	tenantID, err := domain.TenantIDFromContext(r.Context())
 	if err != nil {
 		writeProblem(w, http.StatusUnauthorized, "Unauthorized", err.Error())
@@ -201,13 +202,13 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req updateUserRequest
+	var req updateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeProblem(w, http.StatusBadRequest, "Bad Request", "invalid JSON body")
 		return
 	}
 
-	user, err := h.update.Execute(r.Context(), useruc.UpdateCommand{
+	user, err := h.update.Execute(r.Context(), UpdateCommand{
 		TenantID: tenantID,
 		ID:       id,
 		Name:     req.Name,
@@ -216,22 +217,48 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Status:   req.Status,
 	})
 	if err != nil {
-		handleUserError(w, err)
+		handleError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, toUserResponse(user))
+	writeJSON(w, http.StatusOK, toResponse(user))
 }
 
-func handleUserError(w http.ResponseWriter, err error) {
+func handleError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, domain.ErrUserNotFound):
+	case errors.Is(err, ErrNotFound):
 		writeProblem(w, http.StatusNotFound, "Not Found", err.Error())
-	case errors.Is(err, domain.ErrUserEmailExists):
+	case errors.Is(err, ErrEmailExists):
 		writeProblem(w, http.StatusConflict, "Conflict", err.Error())
 	case errors.Is(err, domain.ErrValidation):
 		writeProblem(w, http.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())
 	default:
 		writeProblem(w, http.StatusInternalServerError, "Internal Server Error", "an unexpected error occurred")
 	}
+}
+
+// Helper functions (RFC 7807)
+
+type problemDetail struct {
+	Type   string `json:"type"`
+	Title  string `json:"title"`
+	Status int    `json:"status"`
+	Detail string `json:"detail,omitempty"`
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeProblem(w http.ResponseWriter, status int, title, detail string) {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(problemDetail{
+		Type:   "about:blank",
+		Title:  title,
+		Status: status,
+		Detail: detail,
+	})
 }

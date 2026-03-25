@@ -17,13 +17,15 @@ type UpdateCommand struct {
 	Status   string
 }
 
-type UpdateUseCase struct{ repo domain.UserRepository }
+type UpdateUseCase struct {
+	repo Repository
+}
 
-func NewUpdateUseCase(repo domain.UserRepository) *UpdateUseCase {
+func NewUpdateUseCase(repo Repository) *UpdateUseCase {
 	return &UpdateUseCase{repo: repo}
 }
 
-func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*domain.User, error) {
+func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*User, error) {
 	existing, err := uc.repo.GetByID(ctx, cmd.TenantID, cmd.ID)
 	if err != nil {
 		return nil, err
@@ -33,8 +35,8 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*domai
 
 	existing.Name = cmd.Name
 	existing.Email = cmd.Email
-	existing.Role = domain.UserRole(cmd.Role)
-	existing.Status = domain.UserStatus(cmd.Status)
+	existing.Role = Role(cmd.Role)
+	existing.Status = Status(cmd.Status)
 
 	if err := existing.Validate(); err != nil {
 		return nil, err
@@ -43,9 +45,9 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*domai
 	if originalEmail != cmd.Email {
 		other, err := uc.repo.GetByEmail(ctx, cmd.TenantID, cmd.Email)
 		if err == nil && other.ID != cmd.ID {
-			return nil, domain.ErrUserEmailExists
+			return nil, ErrEmailExists
 		}
-		if err != nil && !errors.Is(err, domain.ErrUserNotFound) {
+		if err != nil && !errors.Is(err, ErrNotFound) {
 			return nil, err
 		}
 	}

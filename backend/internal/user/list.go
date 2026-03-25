@@ -14,13 +14,15 @@ type ListCommand struct {
 	Size     int
 }
 
-type ListUseCase struct{ repo domain.UserRepository }
+type ListUseCase struct {
+	repo Repository
+}
 
-func NewListUseCase(repo domain.UserRepository) *ListUseCase {
+func NewListUseCase(repo Repository) *ListUseCase {
 	return &ListUseCase{repo: repo}
 }
 
-func (uc *ListUseCase) Execute(ctx context.Context, cmd ListCommand) (domain.UserListResult, error) {
+func (uc *ListUseCase) Execute(ctx context.Context, cmd ListCommand) (ListResult, error) {
 	if cmd.Size <= 0 {
 		cmd.Size = 20
 	}
@@ -31,13 +33,13 @@ func (uc *ListUseCase) Execute(ctx context.Context, cmd ListCommand) (domain.Use
 		cmd.Page = 1
 	}
 
-	filter := domain.UserListFilter{
+	filter := ListFilter{
 		TenantID: cmd.TenantID,
 		Page:     cmd.Page,
 		Size:     cmd.Size,
 	}
 	if cmd.Status != nil {
-		s := domain.UserStatus(*cmd.Status)
+		s := Status(*cmd.Status)
 		filter.Status = &s
 	}
 	if cmd.Search != nil && *cmd.Search != "" {

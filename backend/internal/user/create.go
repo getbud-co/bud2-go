@@ -15,20 +15,22 @@ type CreateCommand struct {
 	Role     string
 }
 
-type CreateUseCase struct{ repo domain.UserRepository }
+type CreateUseCase struct {
+	repo Repository
+}
 
-func NewCreateUseCase(repo domain.UserRepository) *CreateUseCase {
+func NewCreateUseCase(repo Repository) *CreateUseCase {
 	return &CreateUseCase{repo: repo}
 }
 
-func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*domain.User, error) {
-	user := &domain.User{
+func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*User, error) {
+	user := &User{
 		ID:       uuid.New(),
 		TenantID: cmd.TenantID,
 		Name:     cmd.Name,
 		Email:    cmd.Email,
-		Role:     domain.UserRole(cmd.Role),
-		Status:   domain.UserStatusActive,
+		Role:     Role(cmd.Role),
+		Status:   StatusActive,
 	}
 
 	if err := user.Validate(); err != nil {
@@ -36,8 +38,8 @@ func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*domai
 	}
 
 	if _, err := uc.repo.GetByEmail(ctx, cmd.TenantID, cmd.Email); err == nil {
-		return nil, domain.ErrUserEmailExists
-	} else if !errors.Is(err, domain.ErrUserNotFound) {
+		return nil, ErrEmailExists
+	} else if !errors.Is(err, ErrNotFound) {
 		return nil, err
 	}
 

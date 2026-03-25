@@ -10,10 +10,10 @@ import (
 
 	apispec "github.com/dsbraz/bud2/backend/api"
 	"github.com/dsbraz/bud2/backend/internal/config"
-	"github.com/dsbraz/bud2/backend/internal/handler"
-	"github.com/dsbraz/bud2/backend/internal/infra/postgres"
-	orguc "github.com/dsbraz/bud2/backend/internal/usecase/organization"
-	useruc "github.com/dsbraz/bud2/backend/internal/usecase/user"
+	"github.com/dsbraz/bud2/backend/internal/organization"
+	"github.com/dsbraz/bud2/backend/internal/shared"
+	"github.com/dsbraz/bud2/backend/internal/shared/postgres"
+	"github.com/dsbraz/bud2/backend/internal/user"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -50,24 +50,24 @@ func main() {
 
 	// Infra
 	queries := postgres.New(pool)
-	orgRepo := postgres.NewOrganizationRepository(queries)
-	userRepo := postgres.NewUserRepository(queries)
+	orgRepo := organization.NewRepository(queries)
+	userRepo := user.NewRepository(queries)
 
 	// Use cases
-	createOrg := orguc.NewCreateUseCase(orgRepo)
-	getOrg := orguc.NewGetUseCase(orgRepo)
-	listOrg := orguc.NewListUseCase(orgRepo)
-	updateOrg := orguc.NewUpdateUseCase(orgRepo)
+	createOrg := organization.NewCreateUseCase(orgRepo)
+	getOrg := organization.NewGetUseCase(orgRepo)
+	listOrg := organization.NewListUseCase(orgRepo)
+	updateOrg := organization.NewUpdateUseCase(orgRepo)
 
-	createUser := useruc.NewCreateUseCase(userRepo)
-	getUser := useruc.NewGetUseCase(userRepo)
-	listUser := useruc.NewListUseCase(userRepo)
-	updateUser := useruc.NewUpdateUseCase(userRepo)
+	createUser := user.NewCreateUseCase(userRepo)
+	getUser := user.NewGetUseCase(userRepo)
+	listUser := user.NewListUseCase(userRepo)
+	updateUser := user.NewUpdateUseCase(userRepo)
 
 	// Handler + Router
-	orgHandler := handler.NewOrganizationHandler(createOrg, getOrg, listOrg, updateOrg)
-	userHandler := handler.NewUserHandler(createUser, getUser, listUser, updateUser)
-	router := handler.NewRouter(orgHandler, userHandler, handler.RouterConfig{
+	orgHandler := organization.NewHandler(createOrg, getOrg, listOrg, updateOrg)
+	userHandler := user.NewHandler(createUser, getUser, listUser, updateUser)
+	router := shared.NewRouter(orgHandler, userHandler, shared.RouterConfig{
 		Env:            cfg.Env,
 		AllowedOrigins: strings.Split(cfg.AllowedOrigins, ","),
 		OpenAPISpec:    apispec.Spec,

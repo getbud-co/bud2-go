@@ -1,8 +1,10 @@
-package handler
+package shared
 
 import (
 	"strings"
 
+	"github.com/dsbraz/bud2/backend/internal/organization"
+	"github.com/dsbraz/bud2/backend/internal/user"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -14,7 +16,7 @@ type RouterConfig struct {
 	OpenAPISpec    []byte
 }
 
-func NewRouter(orgHandler *OrganizationHandler, userHandler *UserHandler, cfg RouterConfig) *chi.Mux {
+func NewRouter(orgHandler *organization.Handler, userHandler *user.Handler, cfg RouterConfig) *chi.Mux {
 	r := chi.NewRouter()
 
 	allowedOrigins := cfg.AllowedOrigins
