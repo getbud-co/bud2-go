@@ -9,11 +9,20 @@ import (
 	"strings"
 
 	apispec "github.com/dsbraz/bud2/backend/api"
+	"github.com/dsbraz/bud2/backend/internal/api"
+	apiauth "github.com/dsbraz/bud2/backend/internal/api/auth"
+	apibootstrap "github.com/dsbraz/bud2/backend/internal/api/bootstrap"
+	apiorg "github.com/dsbraz/bud2/backend/internal/api/organization"
+	apiuser "github.com/dsbraz/bud2/backend/internal/api/user"
+	appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
+	appbootstrap "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
+	apporg "github.com/dsbraz/bud2/backend/internal/app/organization"
+	appuser "github.com/dsbraz/bud2/backend/internal/app/user"
 	"github.com/dsbraz/bud2/backend/internal/config"
-	"github.com/dsbraz/bud2/backend/internal/organization"
-	"github.com/dsbraz/bud2/backend/internal/shared"
-	"github.com/dsbraz/bud2/backend/internal/shared/postgres"
-	"github.com/dsbraz/bud2/backend/internal/user"
+	infraauth "github.com/dsbraz/bud2/backend/internal/infra/auth"
+	"github.com/dsbraz/bud2/backend/internal/infra/postgres"
+	"github.com/dsbraz/bud2/backend/internal/infra/postgres/sqlc"
+	"github.com/dsbraz/bud2/backend/internal/infra/rbac"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -25,6 +34,17 @@ func main() {
 
 	if cfg.DatabaseURL == "" {
 		slog.Error("DATABASE_URL is required")
+		os.Exit(1)
+	}
+
+	if cfg.JWTSecret == "" {
+		slog.Error("JWT_SECRET is required")
+		os.Exit(1)
+	}
+
+	// Initialize Casbin enforcer
+	if err := rbac.InitEnforcer(cfg.PolicyModel, cfg.PolicyFile); err != nil {
+		slog.Error("failed to initialize authorization", "error", err)
 		os.Exit(1)
 	}
 
@@ -49,28 +69,37 @@ func main() {
 	}
 
 	// Infra
-	queries := postgres.New(pool)
-	orgRepo := organization.NewRepository(queries)
-	userRepo := user.NewRepository(queries)
+	queries := sqlc.New(pool)
+	orgRepo := postgres.NewOrgRepository(queries)
+	userRepo := postgres.NewUserRepository(queries)
+	txBootstrapper := postgres.NewTxBootstrapper(pool)
+	tokenIssuer := infraauth.NewTokenIssuer(cfg.JWTSecret)
 
 	// Use cases
-	createOrg := organization.NewCreateUseCase(orgRepo)
-	getOrg := organization.NewGetUseCase(orgRepo)
-	listOrg := organization.NewListUseCase(orgRepo)
-	updateOrg := organization.NewUpdateUseCase(orgRepo)
+	createOrg := apporg.NewCreateUseCase(orgRepo)
+	getOrg := apporg.NewGetUseCase(orgRepo)
+	listOrg := apporg.NewListUseCase(orgRepo)
+	updateOrg := apporg.NewUpdateUseCase(orgRepo)
 
-	createUser := user.NewCreateUseCase(userRepo)
-	getUser := user.NewGetUseCase(userRepo)
-	listUser := user.NewListUseCase(userRepo)
-	updateUser := user.NewUpdateUseCase(userRepo)
+	createUser := appuser.NewCreateUseCase(userRepo)
+	getUser := appuser.NewGetUseCase(userRepo)
+	listUser := appuser.NewListUseCase(userRepo)
+	updateUser := appuser.NewUpdateUseCase(userRepo)
 
-	// Handler + Router
-	orgHandler := organization.NewHandler(createOrg, getOrg, listOrg, updateOrg)
-	userHandler := user.NewHandler(createUser, getUser, listUser, updateUser)
-	router := shared.NewRouter(orgHandler, userHandler, shared.RouterConfig{
+	bootstrapUC := appbootstrap.NewUseCase(orgRepo, txBootstrapper, tokenIssuer)
+	loginUC := appauth.NewLoginUseCase(userRepo, tokenIssuer)
+
+	// Handlers + Router
+	bootstrapHandler := apibootstrap.NewHandler(bootstrapUC)
+	authHandler := apiauth.NewHandler(loginUC)
+	orgHandler := apiorg.NewHandler(createOrg, getOrg, listOrg, updateOrg)
+	userHandler := apiuser.NewHandler(createUser, getUser, listUser, updateUser)
+	router := api.NewRouter(bootstrapHandler, authHandler, orgHandler, userHandler, api.RouterConfig{
 		Env:            cfg.Env,
 		AllowedOrigins: strings.Split(cfg.AllowedOrigins, ","),
 		OpenAPISpec:    apispec.Spec,
+		JWTSecret:      cfg.JWTSecret,
+		Enforcer:       rbac.Enforcer(),
 	})
 
 	slog.Info("starting server", "port", cfg.Port)
