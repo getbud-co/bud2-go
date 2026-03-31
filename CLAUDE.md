@@ -9,17 +9,32 @@ bud2/
 ├── compose.yml       # Local dev orchestration (backend + frontend + db)
 ├── Makefile          # Root targets: dev, build, test, lint, compose-up/down
 ├── backend/          # Go API
-│   ├── cmd/api/      # Entrypoint (main.go)
-│   ├── internal/     # Private application code
-│   │   ├── domain/       # Entities, value objects, domain interfaces (+ repository interfaces)
-│   │   ├── handler/      # HTTP handlers + router (transport layer)
-│   │   ├── usecase/      # Application services / use cases (business logic)
-│   │   ├── infra/        # Concrete implementations (postgres/, redis/, etc.)
+│   ├── cmd/api/      # Entrypoint (main.go — composition root)
+│   ├── internal/     # Private application code (4-layer architecture)
+│   │   ├── api/          # HTTP transport layer
+│   │   │   ├── httputil/     # Shared HTTP helpers (WriteJSON, WriteProblem)
+│   │   │   ├── middleware/   # Auth, tenant middleware
+│   │   │   ├── organization/ # Organization HTTP handler + DTOs
+│   │   │   ├── user/         # User HTTP handler + DTOs
+│   │   │   └── bootstrap/    # Bootstrap HTTP handler + DTOs
+│   │   ├── app/          # Application services (use cases)
+│   │   │   ├── organization/ # Organization use cases (create, get, list, update)
+│   │   │   ├── user/         # User use cases
+│   │   │   └── bootstrap/    # Bootstrap use case
+│   │   ├── domain/       # Entities, value objects, repository interfaces
+│   │   │   ├── organization/ # Organization entity, Repository interface, errors
+│   │   │   ├── user/         # User entity, Repository interface, errors
+│   │   │   ├── tenant.go     # TenantID value object
+│   │   │   ├── auth.go       # UserID, UserClaims
+│   │   │   └── errors.go     # Shared domain errors
+│   │   ├── infra/        # Concrete implementations
+│   │   │   ├── postgres/     # sqlc generated code + repository implementations
+│   │   │   ├── auth/         # JWT token issuing
+│   │   │   └── rbac/         # Casbin enforcer
 │   │   └── config/       # App configuration
-│   ├── pkg/          # Shared/public libraries
 │   ├── api/          # OpenAPI spec (openapi.yml — source of truth for API contract)
-│   ├── configs/      # Config files (YAML, TOML)
 │   ├── migrations/   # Database migrations (golang-migrate)
+│   ├── policies/     # Casbin RBAC model + policy
 │   ├── sqlc.yml      # sqlc configuration
 │   ├── Dockerfile    # Multi-stage production build
 │   └── .golangci.yml # Linter configuration
@@ -34,27 +49,27 @@ bud2/
 └── .github/workflows/ci.yml  # CI pipeline (lint, test, build)
 ```
 
-## Architecture (Clean Architecture)
+## Architecture (Layered + Feature-based)
 
-Dependency flow — handlers depend on use cases, use cases depend on domain, infra implements domain interfaces:
+Four layers, each subdivided by feature. Dependency rule: api → app → domain ← infra.
 
 ```
 cmd/api/main.go (composition root)
-  └─ handler/ → usecase/ → domain/
-                              ↑
-                           infra/ (implements domain/ interfaces)
+  └─ api/ → app/ → domain/
+                       ↑
+                    infra/ (implements domain/ interfaces)
 ```
 
-- **domain/**: Entities, value objects, repository interfaces. Zero external dependencies.
-- **usecase/**: Application services that orchestrate business logic. Depends only on domain/.
-- **handler/**: HTTP transport. Parses requests, calls use cases, formats responses.
-- **infra/**: Concrete implementations of domain interfaces (database, external APIs, etc.).
+- **api/**: HTTP transport. Handlers parse requests, call use cases, format responses. Contains DTOs, middleware, router.
+- **app/**: Application services (use cases) that orchestrate business logic. Depends only on domain/.
+- **domain/**: Entities, value objects, repository interfaces. Zero external dependencies. Subdivided by feature (organization/, user/).
+- **infra/**: Concrete implementations of domain interfaces (postgres repos, JWT, Casbin). Depends on domain/ + external libs.
 - **config/**: Loaded at composition root (main.go), injected into dependencies.
 
 ## Backend Tooling
 
 - **chi** — HTTP router. Superset of net/http, handlers remain `http.HandlerFunc`.
-- **sqlc** — Generates typed Go code from SQL queries. Config in `sqlc.yml`, queries in `internal/infra/sqlc/queries/*.sql`. Run `make sqlc-gen` after changing queries or migrations.
+- **sqlc** — Generates typed Go code from SQL queries. Config in `sqlc.yml`, queries in `internal/infra/postgres/queries/*.sql`, generated code in `internal/infra/postgres/sqlc/`. Run `make sqlc-gen` after changing queries or migrations.
 - **golang-migrate** — SQL migrations in `migrations/` as `NNNNNN_desc.up.sql` / `NNNNNN_desc.down.sql`.
 - **golang-jwt/jwt** — JWT stateless authentication. Middleware validates token and injects claims into `context.Context`.
 - **go-playground/validator** — Input validation on handler request DTOs (format rules only). Business invariants stay in domain/usecase.
@@ -92,14 +107,16 @@ Strategy: **row-level isolation** — shared schema, `tenant_id UUID NOT NULL` o
 ## Conventions
 
 ### Backend (Go)
-- Follow golang-standards/project-layout
-- Business logic lives in `internal/usecase/`, never in handlers
-- Domain types and repository interfaces in `internal/domain/`
+- 4-layer architecture: `api/` → `app/` → `domain/` ← `infra/`, each subdivided by feature
+- Business logic lives in `internal/app/`, never in handlers
+- Domain types and repository interfaces in `internal/domain/<feature>/`
 - Concrete implementations (DB, external services) in `internal/infra/`
-- Handlers parse requests, orchestrate use cases, format responses
+- Handlers in `internal/api/<feature>/` parse requests, call use cases, format responses
+- Cross-cutting HTTP concerns (middleware, response helpers) in `api/middleware/` and `api/httputil/`
 - SQL queries are explicit (sqlc), never hidden behind an ORM
-- Validation of format/structure in handler DTOs; validation of business invariants in domain/usecase
+- Validation of format/structure in handler DTOs; validation of business invariants in domain/app
 - Tests next to the code they test (`_test.go` suffix)
+- Dependencies injected via interfaces; infrastructure never imported directly by app layer
 
 ### Frontend (Next.js)
 - App Router with `src/` directory
