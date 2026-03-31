@@ -7,6 +7,9 @@ type Config struct {
 	DatabaseURL    string
 	Env            string
 	AllowedOrigins string
+	JWTSecret      string
+	PolicyModel    string
+	PolicyFile     string
 }
 
 func Load() *Config {
@@ -15,6 +18,9 @@ func Load() *Config {
 		DatabaseURL:    getEnv("DATABASE_URL", ""),
 		Env:            getEnv("ENV", "development"),
 		AllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000"),
+		JWTSecret:      getEnv("JWT_SECRET", ""),
+		PolicyModel:    getEnv("POLICY_MODEL", "./policies/model.conf"),
+		PolicyFile:     getEnv("POLICY_FILE", "./policies/policy.csv"),
 	}
 }
 
