@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -33,11 +34,15 @@ type Response struct {
 	} `json:"admin"`
 }
 
-type Handler struct {
-	uc *appbootstrap.UseCase
+type bootstrapUseCase interface {
+	Execute(ctx context.Context, cmd appbootstrap.Command) (*appbootstrap.Result, error)
 }
 
-func NewHandler(uc *appbootstrap.UseCase) *Handler {
+type Handler struct {
+	uc bootstrapUseCase
+}
+
+func NewHandler(uc bootstrapUseCase) *Handler {
 	return &Handler{uc: uc}
 }
 
