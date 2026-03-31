@@ -28,6 +28,7 @@ interface InviteUserModalProps {
 export function InviteUserModal({ open, onClose, onSubmit }: InviteUserModalProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState("collaborator");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +36,7 @@ export function InviteUserModal({ open, onClose, onSubmit }: InviteUserModalProp
   function reset() {
     setName("");
     setEmail("");
+    setPassword("");
     setRole("collaborator");
     setError(null);
   }
@@ -49,7 +51,7 @@ export function InviteUserModal({ open, onClose, onSubmit }: InviteUserModalProp
     setLoading(true);
     setError(null);
     try {
-      await onSubmit({ name, email, role });
+      await onSubmit({ name, email, password, role });
       reset();
       onClose();
     } catch (err) {
@@ -81,6 +83,14 @@ export function InviteUserModal({ open, onClose, onSubmit }: InviteUserModalProp
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="ana@empresa.com"
+              required
+            />
+            <Input
+              label="Senha"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo 8 caracteres"
               required
             />
             <Select

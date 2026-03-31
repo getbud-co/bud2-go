@@ -15,15 +15,37 @@ import {
   SidebarFooter,
   SidebarUser,
 } from "@mdonangelo/bud-ds";
-import { Buildings, Gear, Users } from "@phosphor-icons/react";
+import { Buildings, Gear, Users, SignOut } from "@phosphor-icons/react";
+import { useAuth } from "@/lib/auth";
 
 interface AppShellProps {
   children: React.ReactNode;
+  user?: {
+    name: string;
+    email: string;
+    role: string;
+  } | null;
 }
 
-export function AppShell({ children }: AppShellProps) {
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  admin: "Administrador",
+  manager: "Gestor",
+  collaborator: "Colaborador",
+};
+
+export function AppShell({ children, user }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+  const { logout } = useAuth();
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
@@ -64,10 +86,28 @@ export function AppShell({ children }: AppShellProps) {
 
         <SidebarFooter>
           <SidebarUser
-            name="Admin"
-            role="Administrador"
-            avatar={<Avatar initials="AD" size="sm" />}
+            name={user?.name ?? "Usuário"}
+            role={user?.role ? ROLE_LABEL[user.role] ?? user.role : "Usuário"}
+            avatar={<Avatar initials={user?.name ? getInitials(user.name) : "U"} size="sm" />}
           />
+          <button
+            onClick={logout}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.5rem",
+              marginTop: "0.5rem",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "var(--color-text-secondary)",
+              fontSize: "0.875rem",
+            }}
+          >
+            <SignOut size={16} />
+            Sair
+          </button>
         </SidebarFooter>
       </Sidebar>
 

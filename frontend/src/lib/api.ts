@@ -18,19 +18,43 @@ export class ApiError extends Error {
   }
 }
 
+function getToken(): string | null {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("bud2_token");
+  }
+  return null;
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { body, headers, ...rest } = options;
+  const { body, headers = {}, ...rest } = options;
+
+  // Build headers with auth token if available
+  const requestHeaders: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(headers as Record<string, string>),
+  };
+
+  const token = getToken();
+  if (token) {
+    (requestHeaders as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
 
   const response = await fetch(`${API_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...headers,
-    },
+    headers: requestHeaders,
     body: body ? JSON.stringify(body) : undefined,
     ...rest,
   });
 
   if (!response.ok) {
+    // Handle 401 - redirect to login
+    if (response.status === 401) {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("bud2_token");
+        localStorage.removeItem("bud2_user");
+        window.location.href = "/login";
+      }
+    }
+
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("application/json") || contentType.includes("application/problem+json")) {
       const problem = (await response.json()) as ApiProblem;

@@ -21,6 +21,7 @@ export interface UserListResult {
 export interface CreateUserInput {
   name: string;
   email: string;
+  password: string;
   role: string;
 }
 
@@ -31,27 +32,21 @@ export interface UpdateUserInput {
   status: string;
 }
 
-const tenantHeader = (tenantId: string) => ({ "X-Tenant-ID": tenantId });
-
 export const usersApi = {
-  list: (tenantId: string, params?: { page?: number; size?: number; status?: string; search?: string }) => {
+  list: (params?: { page?: number; size?: number; status?: string; search?: string }) => {
     const query = new URLSearchParams();
     if (params?.page) query.set("page", String(params.page));
     if (params?.size) query.set("size", String(params.size));
     if (params?.status) query.set("status", params.status);
     if (params?.search) query.set("search", params.search);
     const qs = query.toString();
-    return api.get<UserListResult>(`/users${qs ? `?${qs}` : ""}`, {
-      headers: tenantHeader(tenantId),
-    });
+    return api.get<UserListResult>(`/users${qs ? `?${qs}` : ""}`);
   },
 
-  get: (tenantId: string, id: string) =>
-    api.get<User>(`/users/${id}`, { headers: tenantHeader(tenantId) }),
+  get: (id: string) => api.get<User>(`/users/${id}`),
 
-  create: (tenantId: string, input: CreateUserInput) =>
-    api.post<User>("/users", input, { headers: tenantHeader(tenantId) }),
+  create: (input: CreateUserInput) => api.post<User>("/users", input),
 
-  update: (tenantId: string, id: string, input: UpdateUserInput) =>
-    api.put<User>(`/users/${id}`, input, { headers: tenantHeader(tenantId) }),
+  update: (id: string, input: UpdateUserInput) =>
+    api.put<User>(`/users/${id}`, input),
 };

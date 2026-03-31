@@ -20,9 +20,6 @@ import { MagnifyingGlass, Plus, Upload } from "@phosphor-icons/react";
 import { usersApi, type User, type UserListResult } from "@/lib/users";
 import { InviteUserModal } from "@/components/users/InviteUserModal";
 
-// Demo tenant ID — will be replaced by JWT claims
-const DEMO_TENANT_ID = "00000000-0000-0000-0000-000000000001";
-
 const ROLE_LABEL: Record<string, string> = {
   admin: "Administrador",
   manager: "Gestor",
@@ -57,7 +54,7 @@ export default function UsersPage() {
   const fetchUsers = useCallback(() => {
     setLoading(true);
     usersApi
-      .list(DEMO_TENANT_ID, {
+      .list({
         page,
         size,
         search: debouncedSearch || undefined,
@@ -174,7 +171,7 @@ export default function UsersPage() {
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         onSubmit={async (input) => {
-          await usersApi.create(DEMO_TENANT_ID, input);
+          await usersApi.create(input);
           fetchUsers();
         }}
       />
