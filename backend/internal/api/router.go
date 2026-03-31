@@ -6,12 +6,14 @@ import (
 	"time"
 
 	"github.com/dsbraz/bud2/backend/internal/api/auth"
+	"github.com/dsbraz/bud2/backend/internal/api/health"
 	"github.com/dsbraz/bud2/backend/internal/api/middleware"
 	apiorg "github.com/dsbraz/bud2/backend/internal/api/organization"
 	apiuser "github.com/dsbraz/bud2/backend/internal/api/user"
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type BootstrapHandler interface {
@@ -24,6 +26,7 @@ type RouterConfig struct {
 	OpenAPISpec    []byte
 	JWTSecret      string
 	Enforcer       middleware.PermissionChecker
+	Pool           *pgxpool.Pool
 }
 
 func NewRouter(bootstrapHandler BootstrapHandler, authHandler *auth.Handler, orgHandler *apiorg.Handler, userHandler *apiuser.Handler, cfg RouterConfig) *chi.Mux {
@@ -43,11 +46,13 @@ func NewRouter(bootstrapHandler BootstrapHandler, authHandler *auth.Handler, org
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Tenant-ID"},
 		AllowCredentials: true,
 	}))
-	r.Use(chimw.Logger)
 	r.Use(chimw.Recoverer)
-	r.Use(chimw.RequestID)
+	r.Use(middleware.TraceMiddleware)
+	r.Use(middleware.RequestLogger)
 
-	r.Get("/health", Health)
+	healthChecker := health.New(cfg.Pool)
+	r.Get("/health/live", healthChecker.Live)
+	r.Get("/health/ready", healthChecker.Ready)
 
 	if cfg.Env != "production" {
 		r.Get("/swagger/", swaggerUIHandler)

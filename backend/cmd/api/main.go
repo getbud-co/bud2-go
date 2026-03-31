@@ -20,9 +20,11 @@ import (
 	appuser "github.com/dsbraz/bud2/backend/internal/app/user"
 	"github.com/dsbraz/bud2/backend/internal/config"
 	infraauth "github.com/dsbraz/bud2/backend/internal/infra/auth"
+	"github.com/dsbraz/bud2/backend/internal/infra/otel"
 	"github.com/dsbraz/bud2/backend/internal/infra/postgres"
 	"github.com/dsbraz/bud2/backend/internal/infra/postgres/sqlc"
 	"github.com/dsbraz/bud2/backend/internal/infra/rbac"
+	"github.com/exaring/otelpgx"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -31,6 +33,9 @@ import (
 
 func main() {
 	cfg := config.Load()
+
+	// Initialize slog based on environment
+	initSlog(cfg.Env)
 
 	if cfg.DatabaseURL == "" {
 		slog.Error("DATABASE_URL is required")
@@ -48,15 +53,28 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Structured logging
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	// Initialize OpenTelemetry
+	otelProvider, err := otel.NewProvider(otel.Config{
+		Endpoint:    cfg.OTelEndpoint,
+		ServiceName: cfg.OTelServiceName,
+		Environment: cfg.OTelEnvironment,
+	})
+	if err != nil {
+		slog.Error("failed to initialize OpenTelemetry", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := otelProvider.Shutdown(context.Background()); err != nil {
+			slog.Error("failed to shutdown OpenTelemetry", "error", err)
+		}
+	}()
 
 	// Run migrations
 	runMigrations(cfg.DatabaseURL)
 
-	// Database connection pool
+	// Database connection pool with OpenTelemetry instrumentation
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	pool, err := initDBPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
@@ -100,6 +118,7 @@ func main() {
 		OpenAPISpec:    apispec.Spec,
 		JWTSecret:      cfg.JWTSecret,
 		Enforcer:       rbac.Enforcer(),
+		Pool:           pool,
 	})
 
 	slog.Info("starting server", "port", cfg.Port)
@@ -107,6 +126,32 @@ func main() {
 		slog.Error("server error", "error", err)
 		os.Exit(1)
 	}
+}
+
+func initSlog(env string) {
+	var handler slog.Handler
+	opts := &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}
+
+	if env == "production" {
+		handler = slog.NewJSONHandler(os.Stdout, opts)
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, opts)
+	}
+
+	slog.SetDefault(slog.New(handler))
+}
+
+func initDBPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
+	pgxCfg, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	pgxCfg.ConnConfig.Tracer = otelpgx.NewTracer()
+
+	return pgxpool.NewWithConfig(ctx, pgxCfg)
 }
 
 func runMigrations(databaseURL string) {
