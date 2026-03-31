@@ -7,15 +7,16 @@ import (
 	"net/http"
 
 	"github.com/dsbraz/bud2/backend/internal/api/httputil"
+	"github.com/dsbraz/bud2/backend/internal/api/validator"
 	appbootstrap "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
 )
 
 type createRequest struct {
-	OrganizationName string `json:"organization_name"`
-	OrganizationSlug string `json:"organization_slug"`
-	AdminName        string `json:"admin_name"`
-	AdminEmail       string `json:"admin_email"`
-	AdminPassword    string `json:"admin_password"`
+	OrganizationName string `json:"organization_name" validate:"required,min=2,max=100"`
+	OrganizationSlug string `json:"organization_slug" validate:"required,min=2,max=100,slug"`
+	AdminName        string `json:"admin_name" validate:"required,min=2,max=100"`
+	AdminEmail       string `json:"admin_email" validate:"required,email"`
+	AdminPassword    string `json:"admin_password" validate:"required,min=8"`
 }
 
 type Response struct {
@@ -50,6 +51,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteProblem(w, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+		return
+	}
+
+	// Validate request format
+	if err := validator.Validate(req); err != nil {
+		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Validation Error", validator.FormatValidationErrors(err))
 		return
 	}
 

@@ -7,12 +7,13 @@ import (
 	"net/http"
 
 	"github.com/dsbraz/bud2/backend/internal/api/httputil"
+	"github.com/dsbraz/bud2/backend/internal/api/validator"
 	appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
 )
 
 type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=6"`
 }
 
 type loginResponse struct {
@@ -49,9 +50,9 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate required fields
-	if req.Email == "" || req.Password == "" {
-		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Unprocessable Entity", "email and password are required")
+	// Validate request format
+	if err := validator.Validate(req); err != nil {
+		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Validation Error", validator.FormatValidationErrors(err))
 		return
 	}
 

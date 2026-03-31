@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dsbraz/bud2/backend/internal/api/httputil"
+	"github.com/dsbraz/bud2/backend/internal/api/validator"
 	apporg "github.com/dsbraz/bud2/backend/internal/app/organization"
 	"github.com/dsbraz/bud2/backend/internal/domain"
 	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
@@ -51,15 +52,15 @@ func NewHandler(
 // DTOs
 
 type createRequest struct {
-	Name   string `json:"name"`
-	Slug   string `json:"slug"`
-	Status string `json:"status"`
+	Name   string `json:"name" validate:"required,min=2,max=100"`
+	Slug   string `json:"slug" validate:"required,min=2,max=100,slug"`
+	Status string `json:"status" validate:"omitempty,oneof=active inactive"`
 }
 
 type updateRequest struct {
-	Name   string `json:"name"`
-	Slug   string `json:"slug"`
-	Status string `json:"status"`
+	Name   string `json:"name" validate:"required,min=2,max=100"`
+	Slug   string `json:"slug" validate:"required,min=2,max=100,slug"`
+	Status string `json:"status" validate:"required,oneof=active inactive"`
 }
 
 type Response struct {
@@ -95,6 +96,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteProblem(w, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+		return
+	}
+
+	// Validate request format
+	if err := validator.Validate(req); err != nil {
+		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Validation Error", validator.FormatValidationErrors(err))
 		return
 	}
 
@@ -174,6 +181,12 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	var req updateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteProblem(w, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+		return
+	}
+
+	// Validate request format
+	if err := validator.Validate(req); err != nil {
+		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Validation Error", validator.FormatValidationErrors(err))
 		return
 	}
 

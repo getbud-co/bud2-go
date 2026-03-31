@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/dsbraz/bud2/backend/internal/api/httputil"
+	"github.com/dsbraz/bud2/backend/internal/api/validator"
 	appuser "github.com/dsbraz/bud2/backend/internal/app/user"
 	"github.com/dsbraz/bud2/backend/internal/domain"
 	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
@@ -50,17 +51,17 @@ func NewHandler(
 // DTOs
 
 type createRequest struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
+	Name     string `json:"name" validate:"required,min=2,max=100"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=8"`
+	Role     string `json:"role" validate:"required,oneof=admin manager collaborator"`
 }
 
 type updateRequest struct {
-	Name   string `json:"name"`
-	Email  string `json:"email"`
-	Role   string `json:"role"`
-	Status string `json:"status"`
+	Name   string `json:"name" validate:"required,min=2,max=100"`
+	Email  string `json:"email" validate:"required,email"`
+	Role   string `json:"role" validate:"required,oneof=admin manager collaborator"`
+	Status string `json:"status" validate:"required,oneof=active inactive"`
 }
 
 type Response struct {
@@ -106,6 +107,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteProblem(w, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+		return
+	}
+
+	// Validate request format
+	if err := validator.Validate(req); err != nil {
+		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Validation Error", validator.FormatValidationErrors(err))
 		return
 	}
 
@@ -206,6 +213,12 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	var req updateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteProblem(w, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+		return
+	}
+
+	// Validate request format
+	if err := validator.Validate(req); err != nil {
+		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Validation Error", validator.FormatValidationErrors(err))
 		return
 	}
 

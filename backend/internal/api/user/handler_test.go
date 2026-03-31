@@ -76,12 +76,12 @@ func TestHandler_Create_Success(t *testing.T) {
 	handler, mockCreate, _, _, _ := setupHandler()
 	tenantID := fixtures.NewTestTenantID()
 
-	reqBody := createRequest{Name: "Test User", Email: "test@example.com", Role: "admin"}
+	reqBody := createRequest{Name: "Test User", Email: "test@example.com", Password: "password123", Role: "admin"}
 	body, _ := json.Marshal(reqBody)
 	expectedUser := fixtures.NewUser()
 
 	mockCreate.On("Execute", mock.Anything, appuser.CreateCommand{
-		TenantID: tenantID, Name: reqBody.Name, Email: reqBody.Email, Role: reqBody.Role,
+		TenantID: tenantID, Name: reqBody.Name, Email: reqBody.Email, Password: reqBody.Password, Role: reqBody.Role,
 	}).Return(expectedUser, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewReader(body))
@@ -96,7 +96,7 @@ func TestHandler_Create_Success(t *testing.T) {
 
 func TestHandler_Create_MissingTenant(t *testing.T) {
 	handler, mockCreate, _, _, _ := setupHandler()
-	reqBody := createRequest{Name: "Test", Email: "test@example.com", Role: "admin"}
+	reqBody := createRequest{Name: "Test", Email: "test@example.com", Password: "password123", Role: "admin"}
 	body, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -120,21 +120,22 @@ func TestHandler_Create_InvalidJSON(t *testing.T) {
 func TestHandler_Create_ValidationError(t *testing.T) {
 	handler, mockCreate, _, _, _ := setupHandler()
 	tenantID := fixtures.NewTestTenantID()
-	reqBody := createRequest{Name: "Test", Email: "test@example.com", Role: "admin"}
+	// Invalid: name too short (min 2), password too short (min 8), invalid email
+	reqBody := createRequest{Name: "T", Email: "invalid-email", Password: "short", Role: "admin"}
 	body, _ := json.Marshal(reqBody)
-	mockCreate.On("Execute", mock.Anything, mock.Anything).Return(nil, domain.ErrValidation)
 	req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req = req.WithContext(fixtures.NewContextWithTenant(tenantID))
 	rr := httptest.NewRecorder()
 	handler.Create(rr, req)
 	assert.Equal(t, http.StatusUnprocessableEntity, rr.Code)
+	mockCreate.AssertNotCalled(t, "Execute")
 }
 
 func TestHandler_Create_Conflict(t *testing.T) {
 	handler, mockCreate, _, _, _ := setupHandler()
 	tenantID := fixtures.NewTestTenantID()
-	reqBody := createRequest{Name: "Test", Email: "test@example.com", Role: "admin"}
+	reqBody := createRequest{Name: "Test User", Email: "test@example.com", Password: "password123", Role: "admin"}
 	body, _ := json.Marshal(reqBody)
 	mockCreate.On("Execute", mock.Anything, mock.Anything).Return(nil, user.ErrEmailExists)
 	req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewReader(body))
