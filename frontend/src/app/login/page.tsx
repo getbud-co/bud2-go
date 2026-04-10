@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { AuthProvider, useAuth } from "@/lib/auth";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,28 +18,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"}/auth/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, password }),
-        }
-      );
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.detail || "Login failed");
-      }
-
-      const data = await response.json();
-      
-      // Store token and user in localStorage
-      localStorage.setItem("bud2_token", data.access_token);
-      localStorage.setItem("bud2_user", JSON.stringify(data.user));
-      
+      await login(email, password);
       router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
@@ -170,5 +151,13 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <AuthProvider>
+      <LoginPageContent />
+    </AuthProvider>
   );
 }

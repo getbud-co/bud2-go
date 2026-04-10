@@ -53,7 +53,7 @@ export default function OrganizationsPage() {
             <TableHead>
               <TableRow>
                 <TableHeaderCell>Nome</TableHeaderCell>
-                <TableHeaderCell>Slug</TableHeaderCell>
+                <TableHeaderCell>Workspace</TableHeaderCell>
                 <TableHeaderCell>Status</TableHeaderCell>
                 <TableHeaderCell>Criado em</TableHeaderCell>
               </TableRow>
@@ -79,7 +79,7 @@ export default function OrganizationsPage() {
                     style={{ cursor: "pointer" }}
                   >
                     <TableCell>{org.name}</TableCell>
-                    <TableCell>{org.slug}</TableCell>
+                    <TableCell>{org.workspace}</TableCell>
                     <TableCell>
                       <Badge color={org.status === "active" ? "success" : "neutral"}>
                         {org.status === "active" ? "Ativo" : "Inativo"}

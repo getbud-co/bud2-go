@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button, Input, Select } from "@mdonangelo/bud-ds";
 import type { SelectOption } from "@mdonangelo/bud-ds";
 import type { Organization } from "@/lib/organizations";
@@ -12,7 +12,8 @@ const STATUS_OPTIONS: SelectOption[] = [
 
 interface OrganizationFormValues {
   name: string;
-  slug: string;
+  domain: string;
+  workspace: string;
   status: "active" | "inactive";
 }
 
@@ -23,59 +24,24 @@ interface OrganizationFormProps {
   mode: "create" | "edit";
 }
 
-function toSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-");
-}
-
 export function OrganizationForm({ defaultValues, onSubmit, isLoading, mode }: OrganizationFormProps) {
   const [name, setName] = useState(defaultValues?.name ?? "");
-  const [slug, setSlug] = useState(defaultValues?.slug ?? "");
+  const [domain, setDomain] = useState(defaultValues?.domain ?? "");
+  const [workspace, setWorkspace] = useState(defaultValues?.workspace ?? "");
   const [status, setStatus] = useState<"active" | "inactive">(defaultValues?.status ?? "active");
-  const [slugTouched, setSlugTouched] = useState(false);
-
-  useEffect(() => {
-    if (!slugTouched && mode === "create") {
-      setSlug(toSlug(name));
-    }
-  }, [name, slugTouched, mode]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    await onSubmit({ name, slug, status });
+    await onSubmit({ name, domain, workspace, status });
   }
 
   return (
     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <Input
-        label="Nome"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Ex: Acme Corporation"
-        required
-      />
-      <Input
-        label="Slug"
-        value={slug}
-        onChange={(e) => {
-          setSlugTouched(true);
-          setSlug(e.target.value);
-        }}
-        placeholder="ex: acme-corporation"
-        required
-      />
+      <Input label="Nome" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: BRQ Digital Solutions" required />
+      <Input label="Domínio corporativo" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="Ex: brq.com" required />
+      <Input label="Workspace" value={workspace} onChange={(e) => setWorkspace(e.target.value)} placeholder="Ex: brq" required />
       {mode === "edit" && (
-        <Select
-          label="Status"
-          options={STATUS_OPTIONS}
-          value={status}
-          onChange={(val) => setStatus(val as "active" | "inactive")}
-        />
+        <Select label="Status" options={STATUS_OPTIONS} value={status} onChange={(val) => setStatus(val as "active" | "inactive")} />
       )}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", paddingTop: "0.5rem" }}>
         <Button type="submit" loading={isLoading}>

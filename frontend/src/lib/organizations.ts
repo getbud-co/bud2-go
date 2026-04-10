@@ -3,7 +3,8 @@ import { api } from "./api";
 export interface Organization {
   id: string;
   name: string;
-  slug: string;
+  domain: string;
+  workspace: string;
   status: "active" | "inactive";
   created_at: string;
   updated_at: string;
@@ -18,12 +19,14 @@ export interface OrganizationListResult {
 
 export interface CreateOrganizationInput {
   name: string;
-  slug: string;
+  domain: string;
+  workspace: string;
 }
 
 export interface UpdateOrganizationInput {
   name: string;
-  slug: string;
+  domain: string;
+  workspace: string;
   status: "active" | "inactive";
 }
 
@@ -39,9 +42,7 @@ export const organizations = {
 
   get: (id: string) => api.get<Organization>(`/organizations/${id}`),
 
-  create: (input: CreateOrganizationInput) =>
-    api.post<Organization>("/organizations", input),
+  create: (input: CreateOrganizationInput) => api.post<Organization>("/organizations", input),
 
-  update: (id: string, input: UpdateOrganizationInput) =>
-    api.put<Organization>(`/organizations/${id}`, input),
+  update: (id: string, input: UpdateOrganizationInput) => api.put<Organization>(`/organizations/${id}`, input),
 };

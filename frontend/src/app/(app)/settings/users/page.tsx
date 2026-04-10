@@ -38,18 +38,10 @@ function getInitials(name: string) {
 export default function UsersPage() {
   const [result, setResult] = useState<UserListResult | null>(null);
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const size = 20;
-
-  // Debounce search
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(t);
-  }, [search]);
 
   const fetchUsers = useCallback(() => {
     setLoading(true);
@@ -57,21 +49,15 @@ export default function UsersPage() {
       .list({
         page,
         size,
-        search: debouncedSearch || undefined,
       })
       .then(setResult)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [page, debouncedSearch]);
+  }, [page]);
 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
-
-  // Reset page on search change
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedSearch]);
 
   return (
     <div style={{ padding: "1.5rem" }}>
@@ -96,15 +82,6 @@ export default function UsersPage() {
                       )}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <div style={{ width: "260px" }}>
-                        <Input
-                          leftIcon={MagnifyingGlass}
-                          placeholder="Buscar por nome ou e-mail..."
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          size="sm"
-                        />
-                      </div>
                       <Button variant="secondary" leftIcon={Upload} size="sm">
                         Importar usuários
                       </Button>
@@ -131,7 +108,7 @@ export default function UsersPage() {
               ) : result?.data.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={3} style={{ textAlign: "center", padding: "2rem" }}>
-                    {debouncedSearch ? `Nenhum usuário encontrado para "${debouncedSearch}".` : "Nenhum usuário cadastrado."}
+                    Nenhum usuário cadastrado.
                   </TableCell>
                 </TableRow>
               ) : (

@@ -1,37 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { AuthProvider, useAuth } from "@/lib/auth";
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // Check auth state after hydration
-    const checkAuth = () => {
-      const token = localStorage.getItem("bud2_token");
-      if (!token) {
-        router.push("/login");
-      }
-      setIsChecking(false);
-    };
-    
-    checkAuth();
-  }, [router]);
+    if (!isLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [isAuthenticated, isLoading, router]);
 
-  // Wait for auth check
-  if (isChecking) {
+  if (isLoading) {
     return (
-      <div style={{ 
-        minHeight: "100vh", 
-        display: "flex", 
-        alignItems: "center", 
-        justifyContent: "center" 
-      }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         Carregando...
       </div>
     );
@@ -41,7 +27,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  return <AppShell user={user}>{children}</AppShell>;
+  return <AppShell>{children}</AppShell>;
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

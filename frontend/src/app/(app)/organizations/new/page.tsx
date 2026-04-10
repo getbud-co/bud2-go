@@ -30,11 +30,11 @@ export default function NewOrganizationPage() {
             <OrganizationForm
               mode="create"
               isLoading={isLoading}
-              onSubmit={async ({ name, slug }) => {
+              onSubmit={async ({ name, domain, workspace }) => {
                 setIsLoading(true);
                 setError(null);
                 try {
-                  await organizations.create({ name, slug });
+                  await organizations.create({ name, domain, workspace });
                   router.push("/organizations");
                 } catch (err) {
                   setError(err instanceof Error ? err.message : "Erro ao criar organização");

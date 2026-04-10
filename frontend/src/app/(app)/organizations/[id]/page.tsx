@@ -46,11 +46,11 @@ export default function EditOrganizationPage() {
                 mode="edit"
                 defaultValues={org}
                 isLoading={isLoading}
-                onSubmit={async ({ name, slug, status }) => {
+                onSubmit={async ({ name, domain, workspace, status }) => {
                   setIsLoading(true);
                   setError(null);
                   try {
-                    await organizations.update(id, { name, slug, status });
+                    await organizations.update(id, { name, domain, workspace, status });
                     router.push("/organizations");
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Erro ao salvar organização");

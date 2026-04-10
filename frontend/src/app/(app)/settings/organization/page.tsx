@@ -4,20 +4,22 @@ import { useEffect, useState } from "react";
 import { Card, CardHeader, CardBody, PageHeader } from "@mdonangelo/bud-ds";
 import { OrganizationForm } from "@/components/organizations/OrganizationForm";
 import { organizations, type Organization } from "@/lib/organizations";
+import { useAuth } from "@/lib/auth";
 
-// Tenant self-service: edita a primeira organização cadastrada
 export default function SettingsOrganizationPage() {
+  const { activeOrganization } = useAuth();
   const [org, setOrg] = useState<Organization | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    organizations
-      .list({ page: 1, size: 1 })
-      .then((r) => r.data[0] && setOrg(r.data[0]))
-      .catch((err) => setError(err.message));
-  }, []);
+    if (!activeOrganization) {
+      setError("Nenhuma organização ativa selecionada.");
+      return;
+    }
+    organizations.get(activeOrganization.id).then(setOrg).catch((err) => setError(err.message));
+  }, [activeOrganization]);
 
   if (!org && !error) {
     return (
@@ -48,12 +50,12 @@ export default function SettingsOrganizationPage() {
                 mode="edit"
                 defaultValues={org}
                 isLoading={isLoading}
-                onSubmit={async ({ name, slug, status }) => {
+                onSubmit={async ({ name, domain, workspace, status }) => {
                   setIsLoading(true);
                   setError(null);
                   setSuccess(false);
                   try {
-                    const updated = await organizations.update(org.id, { name, slug, status });
+                    const updated = await organizations.update(org.id, { name, domain, workspace, status });
                     setOrg(updated);
                     setSuccess(true);
                   } catch (err) {

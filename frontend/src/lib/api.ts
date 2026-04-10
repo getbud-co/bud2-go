@@ -50,7 +50,6 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     if (response.status === 401) {
       if (typeof window !== "undefined") {
         localStorage.removeItem("bud2_token");
-        localStorage.removeItem("bud2_user");
         window.location.href = "/login";
       }
     }
