@@ -13,9 +13,11 @@ func (u UserID) UUID() uuid.UUID { return uuid.UUID(u) }
 func (u UserID) String() string  { return uuid.UUID(u).String() }
 
 type UserClaims struct {
-	UserID   UserID
-	TenantID TenantID
-	Role     string
+	UserID                UserID
+	ActiveOrganizationID  TenantID
+	HasActiveOrganization bool
+	MembershipRole        string
+	IsSystemAdmin         bool
 }
 
 type claimsContextKey string

@@ -6,21 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
 	"github.com/google/uuid"
+
+	"github.com/dsbraz/bud2/backend/internal/domain"
 )
-
-type Role string
-
-const (
-	RoleAdmin        Role = "admin"
-	RoleManager      Role = "manager"
-	RoleCollaborator Role = "collaborator"
-)
-
-func (r Role) IsValid() bool {
-	return r == RoleAdmin || r == RoleManager || r == RoleCollaborator
-}
 
 type Status string
 
@@ -34,15 +23,14 @@ func (s Status) IsValid() bool {
 }
 
 type User struct {
-	ID           uuid.UUID
-	TenantID     domain.TenantID
-	Name         string
-	Email        string
-	PasswordHash string
-	Role         Role
-	Status       Status
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID            uuid.UUID
+	Name          string
+	Email         string
+	PasswordHash  string
+	Status        Status
+	IsSystemAdmin bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 func (u *User) Validate() error {
@@ -52,9 +40,6 @@ func (u *User) Validate() error {
 	if u.Email == "" {
 		return fmt.Errorf("%w: email is required", domain.ErrValidation)
 	}
-	if !u.Role.IsValid() {
-		return fmt.Errorf("%w: role must be admin, manager or collaborator", domain.ErrValidation)
-	}
 	if !u.Status.IsValid() {
 		return fmt.Errorf("%w: status must be active or inactive", domain.ErrValidation)
 	}
@@ -62,11 +47,10 @@ func (u *User) Validate() error {
 }
 
 type ListFilter struct {
-	TenantID domain.TenantID
-	Status   *Status
-	Search   *string
-	Page     int
-	Size     int
+	Status *Status
+	Search *string
+	Page   int
+	Size   int
 }
 
 type ListResult struct {
@@ -76,9 +60,8 @@ type ListResult struct {
 
 type Repository interface {
 	Create(ctx context.Context, user *User) (*User, error)
-	GetByID(ctx context.Context, tenantID domain.TenantID, id uuid.UUID) (*User, error)
-	GetByEmail(ctx context.Context, tenantID domain.TenantID, email string) (*User, error)
-	GetByEmailForLogin(ctx context.Context, email string) (*User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
+	GetByEmail(ctx context.Context, email string) (*User, error)
 	List(ctx context.Context, filter ListFilter) (ListResult, error)
 	Update(ctx context.Context, user *User) (*User, error)
 }

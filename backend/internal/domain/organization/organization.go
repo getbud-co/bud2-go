@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
 	"github.com/google/uuid"
+
+	"github.com/dsbraz/bud2/backend/internal/domain"
 )
 
 type Status string
@@ -24,7 +25,8 @@ func (s Status) IsValid() bool {
 type Organization struct {
 	ID        uuid.UUID
 	Name      string
-	Slug      string
+	Domain    string
+	Workspace string
 	Status    Status
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -34,8 +36,11 @@ func (o *Organization) Validate() error {
 	if o.Name == "" {
 		return fmt.Errorf("%w: name is required", domain.ErrValidation)
 	}
-	if o.Slug == "" {
-		return fmt.Errorf("%w: slug is required", domain.ErrValidation)
+	if o.Domain == "" {
+		return fmt.Errorf("%w: domain is required", domain.ErrValidation)
+	}
+	if o.Workspace == "" {
+		return fmt.Errorf("%w: workspace is required", domain.ErrValidation)
 	}
 	if !o.Status.IsValid() {
 		return fmt.Errorf("%w: status must be active or inactive", domain.ErrValidation)
@@ -57,13 +62,15 @@ type ListResult struct {
 type Repository interface {
 	Create(ctx context.Context, org *Organization) (*Organization, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*Organization, error)
-	GetBySlug(ctx context.Context, slug string) (*Organization, error)
+	GetByDomain(ctx context.Context, domain string) (*Organization, error)
+	GetByWorkspace(ctx context.Context, workspace string) (*Organization, error)
 	List(ctx context.Context, filter ListFilter) (ListResult, error)
 	Update(ctx context.Context, org *Organization) (*Organization, error)
 	CountAll(ctx context.Context) (int64, error)
 }
 
 var (
-	ErrNotFound   = errors.New("organization not found")
-	ErrSlugExists = errors.New("organization slug already exists")
+	ErrNotFound        = errors.New("organization not found")
+	ErrDomainExists    = errors.New("organization domain already exists")
+	ErrWorkspaceExists = errors.New("organization workspace already exists")
 )

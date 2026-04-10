@@ -43,9 +43,11 @@ func TestTenantID_String(t *testing.T) {
 
 func TestClaims_Context(t *testing.T) {
 	claims := UserClaims{
-		UserID:   UserID(uuid.New()),
-		TenantID: TenantID(uuid.New()),
-		Role:     "admin",
+		UserID:                UserID(uuid.New()),
+		ActiveOrganizationID:  TenantID(uuid.New()),
+		HasActiveOrganization: true,
+		MembershipRole:        "admin",
+		IsSystemAdmin:         false,
 	}
 	ctx := context.Background()
 

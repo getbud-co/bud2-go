@@ -3,8 +3,9 @@ package organization
 import (
 	"testing"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dsbraz/bud2/backend/internal/domain"
 )
 
 func TestStatus_IsValid(t *testing.T) {
@@ -35,36 +36,50 @@ func TestOrganization_Validate(t *testing.T) {
 		{
 			name: "valid organization",
 			org: Organization{
-				Name:   "Test Org",
-				Slug:   "test-org",
-				Status: StatusActive,
+				Name:      "Test Org",
+				Domain:    "test.org",
+				Workspace: "test-org",
+				Status:    StatusActive,
 			},
 			expectedErr: nil,
 		},
 		{
 			name: "missing name",
 			org: Organization{
-				Name:   "",
-				Slug:   "test-org",
-				Status: StatusActive,
+				Name:      "",
+				Domain:    "test.org",
+				Workspace: "test-org",
+				Status:    StatusActive,
 			},
 			expectedErr: domain.ErrValidation,
 		},
 		{
-			name: "missing slug",
+			name: "missing domain",
 			org: Organization{
-				Name:   "Test Org",
-				Slug:   "",
-				Status: StatusActive,
+				Name:      "Test Org",
+				Domain:    "",
+				Workspace: "test-org",
+				Status:    StatusActive,
+			},
+			expectedErr: domain.ErrValidation,
+		},
+		{
+			name: "missing workspace",
+			org: Organization{
+				Name:      "Test Org",
+				Domain:    "test.org",
+				Workspace: "",
+				Status:    StatusActive,
 			},
 			expectedErr: domain.ErrValidation,
 		},
 		{
 			name: "invalid status",
 			org: Organization{
-				Name:   "Test Org",
-				Slug:   "test-org",
-				Status: Status("invalid"),
+				Name:      "Test Org",
+				Domain:    "test.org",
+				Workspace: "test-org",
+				Status:    Status("invalid"),
 			},
 			expectedErr: domain.ErrValidation,
 		},

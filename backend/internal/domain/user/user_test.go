@@ -3,29 +3,10 @@ package user
 import (
 	"testing"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dsbraz/bud2/backend/internal/domain"
 )
-
-func TestRole_IsValid(t *testing.T) {
-	tests := []struct {
-		name     string
-		role     Role
-		expected bool
-	}{
-		{"admin is valid", RoleAdmin, true},
-		{"manager is valid", RoleManager, true},
-		{"collaborator is valid", RoleCollaborator, true},
-		{"invalid role", Role("invalid"), false},
-		{"empty role", Role(""), false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.role.IsValid())
-		})
-	}
-}
 
 func TestStatus_IsValid(t *testing.T) {
 	tests := []struct {
@@ -57,7 +38,6 @@ func TestUser_Validate(t *testing.T) {
 			user: User{
 				Name:   "Test User",
 				Email:  "test@example.com",
-				Role:   RoleAdmin,
 				Status: StatusActive,
 			},
 			expectedErr: nil,
@@ -67,7 +47,6 @@ func TestUser_Validate(t *testing.T) {
 			user: User{
 				Name:   "",
 				Email:  "test@example.com",
-				Role:   RoleAdmin,
 				Status: StatusActive,
 			},
 			expectedErr: domain.ErrValidation,
@@ -77,17 +56,6 @@ func TestUser_Validate(t *testing.T) {
 			user: User{
 				Name:   "Test User",
 				Email:  "",
-				Role:   RoleAdmin,
-				Status: StatusActive,
-			},
-			expectedErr: domain.ErrValidation,
-		},
-		{
-			name: "invalid role",
-			user: User{
-				Name:   "Test User",
-				Email:  "test@example.com",
-				Role:   Role("invalid"),
 				Status: StatusActive,
 			},
 			expectedErr: domain.ErrValidation,
@@ -97,7 +65,6 @@ func TestUser_Validate(t *testing.T) {
 			user: User{
 				Name:   "Test User",
 				Email:  "test@example.com",
-				Role:   RoleAdmin,
 				Status: Status("invalid"),
 			},
 			expectedErr: domain.ErrValidation,
