@@ -1,7 +1,7 @@
 openapi: "3.1.0"
 info:
   title: bud2 API
-  version: "0.1.0"
+  version: "0.2.0"
   description: API do SaaS bud2
 
 servers:
@@ -9,20 +9,116 @@ servers:
     description: Local development
 
 paths:
-  /health:
+  /health/live:
     get:
-      summary: Health check
-      operationId: healthCheck
+      summary: Liveness probe
       tags: [System]
       responses:
         "200":
           description: OK
 
+  /health/ready:
+    get:
+      summary: Readiness probe
+      tags: [System]
+      responses:
+        "200":
+          description: OK
+
+  /auth/login:
+    post:
+      summary: Login
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+
+  /auth/session:
+    get:
+      summary: Current session
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+
+  /auth/switch-organization:
+    post:
+      summary: Switch active organization
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SwitchOrganizationRequest"
+      responses:
+        "200":
+          description: Updated authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /bootstrap:
+    post:
+      summary: Initial platform bootstrap
+      tags: [Bootstrap]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BootstrapRequest"
+      responses:
+        "201":
+          description: Bootstrap completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BootstrapResponse"
+        "409":
+          description: Already bootstrapped
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+
   /organizations:
     get:
       summary: List organizations
-      operationId: listOrganizations
       tags: [Organizations]
+      security:
+        - bearerAuth: []
       parameters:
         - name: page
           in: query
@@ -38,33 +134,26 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/OrganizationListResponse" }
-
+              schema:
+                $ref: "#/components/schemas/OrganizationListResponse"
     post:
       summary: Create organization
-      operationId: createOrganization
       tags: [Organizations]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/CreateOrganizationRequest" }
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationRequest"
       responses:
         "201":
           description: Created
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Organization" }
-        "409":
-          description: Slug already exists
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ProblemDetail" }
-        "422":
-          description: Validation error
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ProblemDetail" }
+              schema:
+                $ref: "#/components/schemas/Organization"
 
   /organizations/{id}:
     parameters:
@@ -72,76 +161,236 @@ paths:
         in: path
         required: true
         schema: { type: string, format: uuid }
-
     get:
       summary: Get organization
-      operationId: getOrganization
       tags: [Organizations]
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Organization" }
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema: { $ref: "#/components/schemas/ProblemDetail" }
-
+              schema:
+                $ref: "#/components/schemas/Organization"
     put:
       summary: Update organization
-      operationId: updateOrganization
       tags: [Organizations]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/UpdateOrganizationRequest" }
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationRequest"
       responses:
         "200":
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Organization" }
-        "404":
-          description: Not found
+              schema:
+                $ref: "#/components/schemas/Organization"
+
+  /users:
+    get:
+      summary: List members from active organization
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [invited, active, inactive] }
+      responses:
+        "200":
+          description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/ProblemDetail" }
-        "409":
-          description: Slug already exists
+              schema:
+                $ref: "#/components/schemas/UserListResponse"
+    post:
+      summary: Create or invite user to active organization
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: Created
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/ProblemDetail" }
-        "422":
-          description: Validation error
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get user membership in active organization
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/ProblemDetail" }
+              schema:
+                $ref: "#/components/schemas/User"
+    put:
+      summary: Update user membership in active organization
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
+    ProblemDetail:
+      type: object
+      required: [title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 6 }
+
+    SwitchOrganizationRequest:
+      type: object
+      required: [organization_id]
+      properties:
+        organization_id: { type: string, format: uuid }
+
+    SessionUser:
+      type: object
+      required: [id, name, email, status, is_system_admin]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        status: { type: string, enum: [active, inactive] }
+        is_system_admin: { type: boolean }
+
+    AccessibleOrganization:
+      type: object
+      required: [id, name, domain, workspace, status]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        domain: { type: string }
+        workspace: { type: string }
+        status: { type: string, enum: [active, inactive] }
+        membership_role: { type: string, enum: [admin, manager, collaborator] }
+        membership_status: { type: string, enum: [invited, active, inactive] }
+
+    SessionResponse:
+      type: object
+      required: [user, organizations]
+      properties:
+        user:
+          $ref: "#/components/schemas/SessionUser"
+        active_organization:
+          $ref: "#/components/schemas/AccessibleOrganization"
+        organizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccessibleOrganization"
+
+    AuthResponse:
+      allOf:
+        - $ref: "#/components/schemas/SessionResponse"
+        - type: object
+          required: [access_token, token_type]
+          properties:
+            access_token: { type: string }
+            token_type: { type: string, example: Bearer }
+
+    BootstrapRequest:
+      type: object
+      required:
+        [organization_name, organization_domain, organization_workspace, admin_name, admin_email, admin_password]
+      properties:
+        organization_name: { type: string }
+        organization_domain: { type: string, format: email }
+        organization_workspace: { type: string }
+        admin_name: { type: string }
+        admin_email: { type: string, format: email }
+        admin_password: { type: string, minLength: 8 }
+
+    BootstrapResponse:
+      type: object
+      required: [access_token, token_type, organization, admin]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string }
+        organization:
+          type: object
+          required: [id, name, domain, workspace]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            domain: { type: string }
+            workspace: { type: string }
+        admin:
+          type: object
+          required: [id, name, email, is_system_admin]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            email: { type: string, format: email }
+            is_system_admin: { type: boolean }
+
     Organization:
       type: object
-      required: [id, name, slug, status, created_at, updated_at]
+      required: [id, name, domain, workspace, status, created_at, updated_at]
       properties:
-        id:
-          type: string
-          format: uuid
-        name:
-          type: string
-        slug:
-          type: string
-        status:
-          type: string
-          enum: [active, inactive]
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
+        id: { type: string, format: uuid }
+        name: { type: string }
+        domain: { type: string }
+        workspace: { type: string }
+        status: { type: string, enum: [active, inactive] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
 
     OrganizationListResponse:
       type: object
@@ -149,44 +398,69 @@ components:
       properties:
         data:
           type: array
-          items: { $ref: "#/components/schemas/Organization" }
-        total:
-          type: integer
-          format: int64
-        page:
-          type: integer
-        size:
-          type: integer
+          items:
+            $ref: "#/components/schemas/Organization"
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
 
     CreateOrganizationRequest:
       type: object
-      required: [name, slug]
+      required: [name, domain, workspace]
       properties:
-        name:
-          type: string
-        slug:
-          type: string
+        name: { type: string }
+        domain: { type: string }
+        workspace: { type: string }
+        status: { type: string, enum: [active, inactive] }
 
     UpdateOrganizationRequest:
       type: object
-      required: [name, slug, status]
+      required: [name, domain, workspace, status]
       properties:
-        name:
-          type: string
-        slug:
-          type: string
-        status:
-          type: string
-          enum: [active, inactive]
+        name: { type: string }
+        domain: { type: string }
+        workspace: { type: string }
+        status: { type: string, enum: [active, inactive] }
 
-    ProblemDetail:
+    User:
       type: object
+      required: [id, name, email, role, status, is_system_admin, created_at, updated_at]
       properties:
-        type:
-          type: string
-        title:
-          type: string
-        status:
-          type: integer
-        detail:
-          type: string
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [admin, manager, collaborator] }
+        status: { type: string, enum: [invited, active, inactive] }
+        is_system_admin: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    UserListResponse:
+      type: object
+      required: [data, total, page, size]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+
+    CreateUserRequest:
+      type: object
+      required: [name, email, password, role]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        role: { type: string, enum: [admin, manager, collaborator] }
+
+    UpdateUserRequest:
+      type: object
+      required: [name, email, role, status]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [admin, manager, collaborator] }
+        status: { type: string, enum: [invited, active, inactive] }
