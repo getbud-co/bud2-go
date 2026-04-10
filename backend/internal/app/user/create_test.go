@@ -9,13 +9,14 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/domain/user"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
+	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 func TestCreateUseCase_Execute_Success(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	cmd := CreateCommand{
@@ -43,7 +44,7 @@ func TestCreateUseCase_Execute_Success(t *testing.T) {
 
 func TestCreateUseCase_Execute_EmailAlreadyExists(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	cmd := CreateCommand{
@@ -68,7 +69,7 @@ func TestCreateUseCase_Execute_EmailAlreadyExists(t *testing.T) {
 
 func TestCreateUseCase_Execute_InvalidRole(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	cmd := CreateCommand{
@@ -89,7 +90,7 @@ func TestCreateUseCase_Execute_InvalidRole(t *testing.T) {
 
 func TestCreateUseCase_Execute_MissingName(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	cmd := CreateCommand{
@@ -110,7 +111,7 @@ func TestCreateUseCase_Execute_MissingName(t *testing.T) {
 
 func TestCreateUseCase_Execute_MissingEmail(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	cmd := CreateCommand{
@@ -131,7 +132,7 @@ func TestCreateUseCase_Execute_MissingEmail(t *testing.T) {
 
 func TestCreateUseCase_Execute_MissingPassword(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	cmd := CreateCommand{
@@ -152,7 +153,7 @@ func TestCreateUseCase_Execute_MissingPassword(t *testing.T) {
 
 func TestCreateUseCase_Execute_GetByEmailError(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	cmd := CreateCommand{
@@ -176,7 +177,7 @@ func TestCreateUseCase_Execute_GetByEmailError(t *testing.T) {
 
 func TestCreateUseCase_Execute_CreateError(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	cmd := CreateCommand{

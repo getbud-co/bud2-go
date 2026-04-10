@@ -13,6 +13,7 @@ type Config struct {
 	OTelEndpoint    string
 	OTelServiceName string
 	OTelEnvironment string
+	LogLevel        string
 }
 
 func Load() *Config {
@@ -27,6 +28,7 @@ func Load() *Config {
 		OTelEndpoint:    getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
 		OTelServiceName: getEnv("OTEL_SERVICE_NAME", "bud2-backend"),
 		OTelEnvironment: getEnv("OTEL_ENVIRONMENT", "development"),
+		LogLevel:        getEnv("LOG_LEVEL", "info"),
 	}
 
 	return cfg

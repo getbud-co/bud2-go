@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/dsbraz/bud2/backend/internal/domain"
@@ -42,32 +43,38 @@ type UseCase struct {
 	txm      TxManager
 	issuer   TokenIssuer
 	tokenTTL time.Duration
+	logger   *slog.Logger
 }
 
-func NewUseCase(orgRepo organization.Repository, txm TxManager, issuer TokenIssuer) *UseCase {
+func NewUseCase(orgRepo organization.Repository, txm TxManager, issuer TokenIssuer, logger *slog.Logger) *UseCase {
 	return &UseCase{
 		orgRepo:  orgRepo,
 		txm:      txm,
 		issuer:   issuer,
 		tokenTTL: 24 * time.Hour,
+		logger:   logger,
 	}
 }
 
 func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
+	uc.logger.Debug("starting bootstrap", "organization_name", cmd.OrganizationName, "admin_email", cmd.AdminEmail)
+
 	count, err := uc.orgRepo.CountAll(ctx)
 	if err != nil {
+		uc.logger.Error("failed to count organizations", "error", err)
 		return nil, err
 	}
 	if count > 0 {
+		uc.logger.Warn("bootstrap already completed", "organization_count", count)
 		return nil, ErrAlreadyBootstrapped
 	}
 
 	var createdOrg *organization.Organization
 	var createdAdmin *user.User
 
-	// Hash admin password
 	passwordHash, err := auth.HashPassword(cmd.AdminPassword)
 	if err != nil {
+		uc.logger.Error("failed to hash admin password", "error", err)
 		return nil, fmt.Errorf("invalid admin password: %w", err)
 	}
 
@@ -79,6 +86,7 @@ func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
 			Status: organization.StatusActive,
 		})
 		if txErr != nil {
+			uc.logger.Error("failed to create organization in transaction", "error", txErr)
 			return txErr
 		}
 
@@ -92,6 +100,7 @@ func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
 			Status:       user.StatusActive,
 		}
 		if txErr = admin.Validate(); txErr != nil {
+			uc.logger.Warn("admin validation failed", "error", txErr, "email", cmd.AdminEmail)
 			return txErr
 		}
 
@@ -99,6 +108,7 @@ func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
 		return txErr
 	})
 	if err != nil {
+		uc.logger.Error("bootstrap transaction failed", "error", err)
 		return nil, err
 	}
 
@@ -108,8 +118,11 @@ func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
 		Role:     string(createdAdmin.Role),
 	}, uc.tokenTTL)
 	if err != nil {
+		uc.logger.Error("failed to generate bootstrap token", "error", err, "user_id", createdAdmin.ID)
 		return nil, err
 	}
+
+	uc.logger.Info("bootstrap completed", "organization_id", createdOrg.ID, "admin_id", createdAdmin.ID, "organization_name", cmd.OrganizationName)
 
 	return &Result{
 		Organization: *createdOrg,

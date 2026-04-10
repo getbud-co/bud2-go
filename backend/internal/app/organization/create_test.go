@@ -9,13 +9,14 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/domain/organization"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
+	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 func TestCreateUseCase_Execute_Success(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	cmd := CreateCommand{
 		Name:   "Test Organization",
@@ -40,7 +41,7 @@ func TestCreateUseCase_Execute_Success(t *testing.T) {
 
 func TestCreateUseCase_Execute_SlugAlreadyExists(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	cmd := CreateCommand{
 		Name:   "Test Organization",
@@ -62,7 +63,7 @@ func TestCreateUseCase_Execute_SlugAlreadyExists(t *testing.T) {
 
 func TestCreateUseCase_Execute_InvalidStatus(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	cmd := CreateCommand{
 		Name:   "Test Organization",
@@ -80,7 +81,7 @@ func TestCreateUseCase_Execute_InvalidStatus(t *testing.T) {
 
 func TestCreateUseCase_Execute_MissingName(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	cmd := CreateCommand{
 		Name:   "",
@@ -98,7 +99,7 @@ func TestCreateUseCase_Execute_MissingName(t *testing.T) {
 
 func TestCreateUseCase_Execute_MissingSlug(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	cmd := CreateCommand{
 		Name:   "Test Organization",
@@ -116,7 +117,7 @@ func TestCreateUseCase_Execute_MissingSlug(t *testing.T) {
 
 func TestCreateUseCase_Execute_GetBySlugError(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	cmd := CreateCommand{
 		Name:   "Test Organization",
@@ -137,7 +138,7 @@ func TestCreateUseCase_Execute_GetBySlugError(t *testing.T) {
 
 func TestCreateUseCase_Execute_CreateError(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	cmd := CreateCommand{
 		Name:   "Test Organization",
@@ -158,7 +159,7 @@ func TestCreateUseCase_Execute_CreateError(t *testing.T) {
 
 func TestCreateUseCase_Execute_DefaultStatus(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	cmd := CreateCommand{
 		Name: "Test Organization",
@@ -183,7 +184,7 @@ func TestCreateUseCase_Execute_DefaultStatus(t *testing.T) {
 
 func TestCreateUseCase_Execute_InactiveStatus(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo)
+	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	cmd := CreateCommand{
 		Name:   "Test Organization",

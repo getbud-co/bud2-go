@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/dsbraz/bud2/backend/internal/domain"
@@ -30,38 +31,41 @@ type LoginUseCase struct {
 	repo     user.Repository
 	issuer   *auth.TokenIssuer
 	tokenTTL time.Duration
+	logger   *slog.Logger
 }
 
-func NewLoginUseCase(repo user.Repository, issuer *auth.TokenIssuer) *LoginUseCase {
+func NewLoginUseCase(repo user.Repository, issuer *auth.TokenIssuer, logger *slog.Logger) *LoginUseCase {
 	return &LoginUseCase{
 		repo:     repo,
 		issuer:   issuer,
-		tokenTTL: 7 * 24 * time.Hour, // 7 days
+		tokenTTL: 7 * 24 * time.Hour,
+		logger:   logger,
 	}
 }
 
 func (uc *LoginUseCase) Execute(ctx context.Context, cmd LoginCommand) (*LoginResult, error) {
-	// Find user by email (global search, email is unique)
+	uc.logger.Debug("login attempt", "email", cmd.Email)
+
 	u, err := uc.repo.GetByEmailForLogin(ctx, cmd.Email)
 	if err != nil {
 		if errors.Is(err, user.ErrNotFound) {
-			// Return generic error to not reveal if email exists
+			uc.logger.Warn("login failed - invalid credentials", "email", cmd.Email)
 			return nil, ErrInvalidCredentials
 		}
+		uc.logger.Error("failed to find user", "error", err, "email", cmd.Email)
 		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
 
-	// Verify password
 	if !auth.VerifyPassword(cmd.Password, u.PasswordHash) {
+		uc.logger.Warn("login failed - invalid credentials", "email", cmd.Email)
 		return nil, ErrInvalidCredentials
 	}
 
-	// Check if user is active
 	if u.Status != user.StatusActive {
+		uc.logger.Warn("login failed - user inactive", "email", cmd.Email, "user_id", u.ID, "status", u.Status)
 		return nil, ErrUserInactive
 	}
 
-	// Generate JWT token
 	claims := domain.UserClaims{
 		UserID:   domain.UserID(u.ID),
 		TenantID: u.TenantID,
@@ -70,10 +74,12 @@ func (uc *LoginUseCase) Execute(ctx context.Context, cmd LoginCommand) (*LoginRe
 
 	token, err := uc.issuer.IssueToken(claims, uc.tokenTTL)
 	if err != nil {
+		uc.logger.Error("failed to generate token", "error", err, "user_id", u.ID)
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
-	// Don't return password hash
+	uc.logger.Info("login successful", "user_id", u.ID, "tenant_id", u.TenantID, "email", cmd.Email)
+
 	u.PasswordHash = ""
 
 	return &LoginResult{

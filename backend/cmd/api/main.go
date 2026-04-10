@@ -34,8 +34,8 @@ import (
 func main() {
 	cfg := config.Load()
 
-	// Initialize slog based on environment
-	initSlog(cfg.Env)
+	logger := initLogger(cfg.Env, cfg.LogLevel)
+	slog.SetDefault(logger)
 
 	if cfg.DatabaseURL == "" {
 		slog.Error("DATABASE_URL is required")
@@ -94,18 +94,18 @@ func main() {
 	tokenIssuer := infraauth.NewTokenIssuer(cfg.JWTSecret)
 
 	// Use cases
-	createOrg := apporg.NewCreateUseCase(orgRepo)
-	getOrg := apporg.NewGetUseCase(orgRepo)
-	listOrg := apporg.NewListUseCase(orgRepo)
-	updateOrg := apporg.NewUpdateUseCase(orgRepo)
+	createOrg := apporg.NewCreateUseCase(orgRepo, logger)
+	getOrg := apporg.NewGetUseCase(orgRepo, logger)
+	listOrg := apporg.NewListUseCase(orgRepo, logger)
+	updateOrg := apporg.NewUpdateUseCase(orgRepo, logger)
 
-	createUser := appuser.NewCreateUseCase(userRepo)
-	getUser := appuser.NewGetUseCase(userRepo)
-	listUser := appuser.NewListUseCase(userRepo)
-	updateUser := appuser.NewUpdateUseCase(userRepo)
+	createUser := appuser.NewCreateUseCase(userRepo, logger)
+	getUser := appuser.NewGetUseCase(userRepo, logger)
+	listUser := appuser.NewListUseCase(userRepo, logger)
+	updateUser := appuser.NewUpdateUseCase(userRepo, logger)
 
-	bootstrapUC := appbootstrap.NewUseCase(orgRepo, txBootstrapper, tokenIssuer)
-	loginUC := appauth.NewLoginUseCase(userRepo, tokenIssuer)
+	bootstrapUC := appbootstrap.NewUseCase(orgRepo, txBootstrapper, tokenIssuer, logger)
+	loginUC := appauth.NewLoginUseCase(userRepo, tokenIssuer, logger)
 
 	// Handlers + Router
 	bootstrapHandler := apibootstrap.NewHandler(bootstrapUC)
@@ -128,19 +128,31 @@ func main() {
 	}
 }
 
-func initSlog(env string) {
-	var handler slog.Handler
-	opts := &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+func initLogger(env, levelStr string) *slog.Logger {
+	var level slog.Level
+	switch strings.ToLower(levelStr) {
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
 	}
 
+	opts := &slog.HandlerOptions{Level: level}
+
+	var handler slog.Handler
 	if env == "production" {
 		handler = slog.NewJSONHandler(os.Stdout, opts)
 	} else {
 		handler = slog.NewTextHandler(os.Stdout, opts)
 	}
 
-	slog.SetDefault(slog.New(handler))
+	return slog.New(handler)
 }
 
 func initDBPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {

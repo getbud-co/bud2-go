@@ -11,6 +11,7 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/domain/user"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
+	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -43,7 +44,7 @@ func TestUseCase_Execute_Success(t *testing.T) {
 	}
 	mockIssuer := new(mocks.TokenIssuer)
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer)
+	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
 
 	cmd := Command{
 		OrganizationName: "Test Org",
@@ -81,7 +82,7 @@ func TestUseCase_Execute_AlreadyBootstrapped(t *testing.T) {
 	mockTxManager := new(MockTxManager)
 	mockIssuer := new(mocks.TokenIssuer)
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer)
+	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
 
 	cmd := Command{
 		OrganizationName: "Test Org",
@@ -107,7 +108,7 @@ func TestUseCase_Execute_CountError(t *testing.T) {
 	mockTxManager := new(MockTxManager)
 	mockIssuer := new(mocks.TokenIssuer)
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer)
+	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
 
 	cmd := Command{
 		OrganizationName: "Test Org",
@@ -131,7 +132,7 @@ func TestUseCase_Execute_TransactionError(t *testing.T) {
 	mockTxManager := new(MockTxManager)
 	mockIssuer := new(mocks.TokenIssuer)
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer)
+	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
 
 	cmd := Command{
 		OrganizationName: "Test Org",
@@ -161,7 +162,7 @@ func TestUseCase_Execute_TokenError(t *testing.T) {
 	}
 	mockIssuer := new(mocks.TokenIssuer)
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer)
+	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
 
 	cmd := Command{
 		OrganizationName: "Test Org",
@@ -197,7 +198,7 @@ func TestUseCase_Execute_OrganizationCreatedWithCorrectData(t *testing.T) {
 	}
 	mockIssuer := new(mocks.TokenIssuer)
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer)
+	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
 
 	cmd := Command{
 		OrganizationName: "Acme Corp",
@@ -254,7 +255,7 @@ func TestUseCase_Execute_TenantIDMatchesOrganizationID(t *testing.T) {
 	}
 	mockIssuer := new(mocks.TokenIssuer)
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer)
+	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
 
 	cmd := Command{
 		OrganizationName: "Test Org",

@@ -9,6 +9,7 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/domain/user"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
+	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -16,7 +17,7 @@ import (
 
 func TestUpdateUseCase_Execute_Success(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	existingUser := fixtures.NewUser()
@@ -53,7 +54,7 @@ func TestUpdateUseCase_Execute_Success(t *testing.T) {
 
 func TestUpdateUseCase_Execute_NotFound(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	id := uuid.New()
@@ -78,7 +79,7 @@ func TestUpdateUseCase_Execute_NotFound(t *testing.T) {
 
 func TestUpdateUseCase_Execute_EmailConflict(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	existingUser := fixtures.NewUser()
@@ -111,7 +112,7 @@ func TestUpdateUseCase_Execute_EmailConflict(t *testing.T) {
 
 func TestUpdateUseCase_Execute_SameEmailNoConflict(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	existingUser := fixtures.NewUser()
@@ -146,7 +147,7 @@ func TestUpdateUseCase_Execute_SameEmailNoConflict(t *testing.T) {
 
 func TestUpdateUseCase_Execute_InvalidRole(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	existingUser := fixtures.NewUser()
@@ -173,7 +174,7 @@ func TestUpdateUseCase_Execute_InvalidRole(t *testing.T) {
 
 func TestUpdateUseCase_Execute_InvalidStatus(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	existingUser := fixtures.NewUser()
@@ -200,7 +201,7 @@ func TestUpdateUseCase_Execute_InvalidStatus(t *testing.T) {
 
 func TestUpdateUseCase_Execute_GetByEmailError(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	existingUser := fixtures.NewUser()
@@ -229,7 +230,7 @@ func TestUpdateUseCase_Execute_GetByEmailError(t *testing.T) {
 
 func TestUpdateUseCase_Execute_UpdateError(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	existingUser := fixtures.NewUser()

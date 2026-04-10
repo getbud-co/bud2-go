@@ -7,6 +7,7 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/domain/user"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
+	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -14,7 +15,7 @@ import (
 
 func TestGetUseCase_Execute_Success(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewGetUseCase(mockRepo)
+	uc := NewGetUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	expectedUser := fixtures.NewUser()
@@ -32,7 +33,7 @@ func TestGetUseCase_Execute_Success(t *testing.T) {
 
 func TestGetUseCase_Execute_NotFound(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewGetUseCase(mockRepo)
+	uc := NewGetUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	id := uuid.New()

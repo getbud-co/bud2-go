@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/dsbraz/bud2/backend/internal/domain"
 	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
@@ -20,17 +21,20 @@ type CreateCommand struct {
 }
 
 type CreateUseCase struct {
-	repo usr.Repository
+	repo   usr.Repository
+	logger *slog.Logger
 }
 
-func NewCreateUseCase(repo usr.Repository) *CreateUseCase {
-	return &CreateUseCase{repo: repo}
+func NewCreateUseCase(repo usr.Repository, logger *slog.Logger) *CreateUseCase {
+	return &CreateUseCase{repo: repo, logger: logger}
 }
 
 func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*usr.User, error) {
-	// Hash password
+	uc.logger.Debug("creating user", "email", cmd.Email, "tenant_id", cmd.TenantID)
+
 	passwordHash, err := auth.HashPassword(cmd.Password)
 	if err != nil {
+		uc.logger.Error("failed to hash password", "error", err)
 		return nil, fmt.Errorf("%w: invalid password", domain.ErrValidation)
 	}
 
@@ -45,14 +49,24 @@ func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*usr.U
 	}
 
 	if err := u.Validate(); err != nil {
+		uc.logger.Warn("user validation failed", "error", err, "email", cmd.Email)
 		return nil, err
 	}
 
 	if _, err := uc.repo.GetByEmail(ctx, cmd.TenantID, cmd.Email); err == nil {
+		uc.logger.Warn("email conflict", "email", cmd.Email, "tenant_id", cmd.TenantID)
 		return nil, usr.ErrEmailExists
 	} else if !errors.Is(err, usr.ErrNotFound) {
+		uc.logger.Error("failed to check email uniqueness", "error", err, "email", cmd.Email)
 		return nil, err
 	}
 
-	return uc.repo.Create(ctx, u)
+	result, err := uc.repo.Create(ctx, u)
+	if err != nil {
+		uc.logger.Error("failed to create user", "error", err, "email", cmd.Email)
+		return nil, err
+	}
+
+	uc.logger.Info("user created", "user_id", result.ID, "email", result.Email, "tenant_id", result.TenantID)
+	return result, nil
 }

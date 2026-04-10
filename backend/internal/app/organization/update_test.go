@@ -9,6 +9,7 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/domain/organization"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
+	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -16,7 +17,7 @@ import (
 
 func TestUpdateUseCase_Execute_Success(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	existingOrg := fixtures.NewOrganization()
 	id := existingOrg.ID
@@ -46,7 +47,7 @@ func TestUpdateUseCase_Execute_Success(t *testing.T) {
 
 func TestUpdateUseCase_Execute_NotFound(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	id := uuid.New()
 	cmd := UpdateCommand{
@@ -67,7 +68,7 @@ func TestUpdateUseCase_Execute_NotFound(t *testing.T) {
 
 func TestUpdateUseCase_Execute_SlugConflict(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	existingOrg := fixtures.NewOrganization()
 	id := existingOrg.ID
@@ -95,7 +96,7 @@ func TestUpdateUseCase_Execute_SlugConflict(t *testing.T) {
 
 func TestUpdateUseCase_Execute_SameSlugNoConflict(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	existingOrg := fixtures.NewOrganization()
 	id := existingOrg.ID
@@ -124,7 +125,7 @@ func TestUpdateUseCase_Execute_SameSlugNoConflict(t *testing.T) {
 
 func TestUpdateUseCase_Execute_InvalidStatus(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	existingOrg := fixtures.NewOrganization()
 	id := existingOrg.ID
@@ -147,7 +148,7 @@ func TestUpdateUseCase_Execute_InvalidStatus(t *testing.T) {
 
 func TestUpdateUseCase_Execute_GetBySlugError(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	existingOrg := fixtures.NewOrganization()
 	id := existingOrg.ID
@@ -172,7 +173,7 @@ func TestUpdateUseCase_Execute_GetBySlugError(t *testing.T) {
 
 func TestUpdateUseCase_Execute_UpdateError(t *testing.T) {
 	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo)
+	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	existingOrg := fixtures.NewOrganization()
 	id := existingOrg.ID

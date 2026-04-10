@@ -9,6 +9,7 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/infra/auth"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
+	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -16,7 +17,7 @@ import (
 func TestLoginUseCase_Execute_Success(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
 	tokenIssuer := auth.NewTokenIssuer("test-secret")
-	uc := NewLoginUseCase(mockRepo, tokenIssuer)
+	uc := NewLoginUseCase(mockRepo, tokenIssuer, testutil.NewDiscardLogger())
 
 	cmd := LoginCommand{
 		Email:    "admin@example.com",
@@ -44,7 +45,7 @@ func TestLoginUseCase_Execute_Success(t *testing.T) {
 func TestLoginUseCase_Execute_InvalidCredentials(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
 	tokenIssuer := auth.NewTokenIssuer("test-secret")
-	uc := NewLoginUseCase(mockRepo, tokenIssuer)
+	uc := NewLoginUseCase(mockRepo, tokenIssuer, testutil.NewDiscardLogger())
 
 	cmd := LoginCommand{
 		Email:    "admin@example.com",
@@ -68,7 +69,7 @@ func TestLoginUseCase_Execute_InvalidCredentials(t *testing.T) {
 func TestLoginUseCase_Execute_UserNotFound(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
 	tokenIssuer := auth.NewTokenIssuer("test-secret")
-	uc := NewLoginUseCase(mockRepo, tokenIssuer)
+	uc := NewLoginUseCase(mockRepo, tokenIssuer, testutil.NewDiscardLogger())
 
 	cmd := LoginCommand{
 		Email:    "nonexistent@example.com",
@@ -86,7 +87,7 @@ func TestLoginUseCase_Execute_UserNotFound(t *testing.T) {
 func TestLoginUseCase_Execute_UserInactive(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
 	tokenIssuer := auth.NewTokenIssuer("test-secret")
-	uc := NewLoginUseCase(mockRepo, tokenIssuer)
+	uc := NewLoginUseCase(mockRepo, tokenIssuer, testutil.NewDiscardLogger())
 
 	cmd := LoginCommand{
 		Email:    "admin@example.com",
@@ -110,7 +111,7 @@ func TestLoginUseCase_Execute_UserInactive(t *testing.T) {
 func TestLoginUseCase_Execute_RepositoryError(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
 	tokenIssuer := auth.NewTokenIssuer("test-secret")
-	uc := NewLoginUseCase(mockRepo, tokenIssuer)
+	uc := NewLoginUseCase(mockRepo, tokenIssuer, testutil.NewDiscardLogger())
 
 	cmd := LoginCommand{
 		Email:    "admin@example.com",

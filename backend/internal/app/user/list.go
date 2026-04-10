@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/dsbraz/bud2/backend/internal/domain"
 	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
@@ -16,14 +17,17 @@ type ListCommand struct {
 }
 
 type ListUseCase struct {
-	repo usr.Repository
+	repo   usr.Repository
+	logger *slog.Logger
 }
 
-func NewListUseCase(repo usr.Repository) *ListUseCase {
-	return &ListUseCase{repo: repo}
+func NewListUseCase(repo usr.Repository, logger *slog.Logger) *ListUseCase {
+	return &ListUseCase{repo: repo, logger: logger}
 }
 
 func (uc *ListUseCase) Execute(ctx context.Context, cmd ListCommand) (usr.ListResult, error) {
+	uc.logger.Debug("listing users", "tenant_id", cmd.TenantID, "page", cmd.Page, "size", cmd.Size)
+
 	if cmd.Size <= 0 {
 		cmd.Size = 20
 	}
@@ -47,5 +51,12 @@ func (uc *ListUseCase) Execute(ctx context.Context, cmd ListCommand) (usr.ListRe
 		filter.Search = cmd.Search
 	}
 
-	return uc.repo.List(ctx, filter)
+	result, err := uc.repo.List(ctx, filter)
+	if err != nil {
+		uc.logger.Error("failed to list users", "error", err, "tenant_id", cmd.TenantID)
+		return usr.ListResult{}, err
+	}
+
+	uc.logger.Debug("users listed", "count", len(result.Users), "total", result.Total, "tenant_id", cmd.TenantID)
+	return result, nil
 }

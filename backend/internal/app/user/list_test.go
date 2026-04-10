@@ -7,13 +7,14 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/domain/user"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
+	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
 func TestListUseCase_Execute_Success(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewListUseCase(mockRepo)
+	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	users := fixtures.NewUserList(3)
@@ -42,7 +43,7 @@ func TestListUseCase_Execute_Success(t *testing.T) {
 
 func TestListUseCase_Execute_WithStatusFilter(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewListUseCase(mockRepo)
+	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	status := "active"
@@ -72,7 +73,7 @@ func TestListUseCase_Execute_WithStatusFilter(t *testing.T) {
 
 func TestListUseCase_Execute_WithSearchFilter(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewListUseCase(mockRepo)
+	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	search := "john"
@@ -102,7 +103,7 @@ func TestListUseCase_Execute_WithSearchFilter(t *testing.T) {
 
 func TestListUseCase_Execute_DefaultPagination(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewListUseCase(mockRepo)
+	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	expectedResult := user.ListResult{
@@ -129,7 +130,7 @@ func TestListUseCase_Execute_DefaultPagination(t *testing.T) {
 
 func TestListUseCase_Execute_MaxSizeLimit(t *testing.T) {
 	mockRepo := new(mocks.UserRepository)
-	uc := NewListUseCase(mockRepo)
+	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	expectedResult := user.ListResult{
