@@ -14,7 +14,7 @@ func init() {
 	validate = validator.New()
 
 	// Register custom validation for slug (kebab-case: lowercase letters, numbers, hyphens)
-	validate.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
+	_ = validate.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
 		slug := fl.Field().String()
 		if slug == "" {
 			return true // Let 'required' handle empty strings

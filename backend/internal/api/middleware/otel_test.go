@@ -120,7 +120,7 @@ func TestResponseWriter_Write(t *testing.T) {
 	}
 
 	// Write without explicit WriteHeader
-	rw.Write([]byte("test"))
+	_, _ = rw.Write([]byte("test"))
 
 	if rw.statusCode != http.StatusOK {
 		t.Errorf("expected status %d, got %d", http.StatusOK, rw.statusCode)

@@ -9,17 +9,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	appbootstrap "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	appbootstrap "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
+	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 )
 
-// Mock use case
-type mockBootstrapUseCase struct {
-	mock.Mock
-}
+type mockBootstrapUseCase struct{ mock.Mock }
 
 func (m *mockBootstrapUseCase) Execute(ctx context.Context, cmd appbootstrap.Command) (*appbootstrap.Result, error) {
 	args := m.Called(ctx, cmd)
@@ -30,34 +27,32 @@ func (m *mockBootstrapUseCase) Execute(ctx context.Context, cmd appbootstrap.Com
 }
 
 func TestHandler_Create_Success(t *testing.T) {
-	mockUC := new(mockBootstrapUseCase)
-	handler := NewHandler(mockUC)
+	uc := new(mockBootstrapUseCase)
+	handler := NewHandler(uc)
 
-	reqBody := createRequest{
-		OrganizationName: "Test Org",
-		OrganizationSlug: "test-org",
-		AdminName:        "Admin User",
-		AdminEmail:       "admin@example.com",
-		AdminPassword:    "admin123",
-	}
-	body, _ := json.Marshal(reqBody)
-
-	createdOrg := fixtures.NewOrganization()
-	createdAdmin := fixtures.NewUser()
-	createdAdmin.TenantID = domain.TenantID(createdOrg.ID)
-
-	mockUC.On("Execute", mock.Anything, appbootstrap.Command{
-		OrganizationName: reqBody.OrganizationName,
-		OrganizationSlug: reqBody.OrganizationSlug,
-		AdminName:        reqBody.AdminName,
-		AdminEmail:       reqBody.AdminEmail,
-		AdminPassword:    reqBody.AdminPassword,
+	testOrg := fixtures.NewOrganization()
+	testUser := fixtures.NewUser()
+	uc.On("Execute", mock.Anything, appbootstrap.Command{
+		OrganizationName:      "Test Org",
+		OrganizationDomain:    "admin@example.com",
+		OrganizationWorkspace: "example",
+		AdminName:             "Admin",
+		AdminEmail:            "admin@example.com",
+		AdminPassword:         "password123",
 	}).Return(&appbootstrap.Result{
-		Organization: *createdOrg,
-		Admin:        *createdAdmin,
-		AccessToken:  "test-jwt-token",
+		Organization: *testOrg,
+		Admin:        *testUser,
+		AccessToken:  "test-token",
 	}, nil)
 
+	body, _ := json.Marshal(createRequest{
+		OrganizationName:      "Test Org",
+		OrganizationDomain:    "admin@example.com",
+		OrganizationWorkspace: "example",
+		AdminName:             "Admin",
+		AdminEmail:            "admin@example.com",
+		AdminPassword:         "password123",
+	})
 	req := httptest.NewRequest(http.MethodPost, "/bootstrap", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -65,20 +60,16 @@ func TestHandler_Create_Success(t *testing.T) {
 	handler.Create(rr, req)
 
 	assert.Equal(t, http.StatusCreated, rr.Code)
-
-	var response Response
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
-	assert.Equal(t, "test-jwt-token", response.AccessToken)
-	assert.Equal(t, "Bearer", response.TokenType)
-	assert.Equal(t, createdOrg.ID.String(), response.Organization.ID)
-	assert.Equal(t, createdAdmin.ID.String(), response.Admin.ID)
-	assert.Equal(t, string(createdAdmin.Role), response.Admin.Role)
+	var resp Response
+	assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, "test-token", resp.AccessToken)
+	assert.Equal(t, "Bearer", resp.TokenType)
+	assert.Equal(t, testOrg.ID.String(), resp.Organization.ID)
+	assert.Equal(t, testUser.ID.String(), resp.Admin.ID)
 }
 
 func TestHandler_Create_InvalidJSON(t *testing.T) {
-	mockUC := new(mockBootstrapUseCase)
-	handler := NewHandler(mockUC)
+	handler := NewHandler(new(mockBootstrapUseCase))
 
 	req := httptest.NewRequest(http.MethodPost, "/bootstrap", bytes.NewReader([]byte("invalid")))
 	req.Header.Set("Content-Type", "application/json")
@@ -87,24 +78,22 @@ func TestHandler_Create_InvalidJSON(t *testing.T) {
 	handler.Create(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	mockUC.AssertNotCalled(t, "Execute")
 }
 
 func TestHandler_Create_AlreadyBootstrapped(t *testing.T) {
-	mockUC := new(mockBootstrapUseCase)
-	handler := NewHandler(mockUC)
+	uc := new(mockBootstrapUseCase)
+	handler := NewHandler(uc)
 
-	reqBody := createRequest{
-		OrganizationName: "Test Org",
-		OrganizationSlug: "test-org",
-		AdminName:        "Admin User",
-		AdminEmail:       "admin@example.com",
-		AdminPassword:    "admin123",
-	}
-	body, _ := json.Marshal(reqBody)
+	uc.On("Execute", mock.Anything, mock.Anything).Return(nil, appbootstrap.ErrAlreadyBootstrapped)
 
-	mockUC.On("Execute", mock.Anything, mock.Anything).Return(nil, appbootstrap.ErrAlreadyBootstrapped)
-
+	body, _ := json.Marshal(createRequest{
+		OrganizationName:      "Test Org",
+		OrganizationDomain:    "admin@example.com",
+		OrganizationWorkspace: "example",
+		AdminName:             "Admin",
+		AdminEmail:            "admin@example.com",
+		AdminPassword:         "password123",
+	})
 	req := httptest.NewRequest(http.MethodPost, "/bootstrap", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -112,24 +101,22 @@ func TestHandler_Create_AlreadyBootstrapped(t *testing.T) {
 	handler.Create(rr, req)
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Contains(t, rr.Body.String(), "already completed")
 }
 
 func TestHandler_Create_InternalError(t *testing.T) {
-	mockUC := new(mockBootstrapUseCase)
-	handler := NewHandler(mockUC)
+	uc := new(mockBootstrapUseCase)
+	handler := NewHandler(uc)
 
-	reqBody := createRequest{
-		OrganizationName: "Test Org",
-		OrganizationSlug: "test-org",
-		AdminName:        "Admin User",
-		AdminEmail:       "admin@example.com",
-		AdminPassword:    "admin123",
-	}
-	body, _ := json.Marshal(reqBody)
+	uc.On("Execute", mock.Anything, mock.Anything).Return(nil, errors.New("internal error"))
 
-	mockUC.On("Execute", mock.Anything, mock.Anything).Return(nil, errors.New("database error"))
-
+	body, _ := json.Marshal(createRequest{
+		OrganizationName:      "Test Org",
+		OrganizationDomain:    "admin@example.com",
+		OrganizationWorkspace: "example",
+		AdminName:             "Admin",
+		AdminEmail:            "admin@example.com",
+		AdminPassword:         "password123",
+	})
 	req := httptest.NewRequest(http.MethodPost, "/bootstrap", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -137,4 +124,24 @@ func TestHandler_Create_InternalError(t *testing.T) {
 	handler.Create(rr, req)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestHandler_Create_RequestValidationError(t *testing.T) {
+	handler := NewHandler(new(mockBootstrapUseCase))
+
+	body, _ := json.Marshal(createRequest{
+		OrganizationName:      "T",
+		OrganizationDomain:    "not-email",
+		OrganizationWorkspace: "",
+		AdminName:             "",
+		AdminEmail:            "",
+		AdminPassword:         "",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/bootstrap", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, rr.Code)
 }

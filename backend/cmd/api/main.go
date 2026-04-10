@@ -8,6 +8,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/exaring/otelpgx"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	apispec "github.com/dsbraz/bud2/backend/api"
 	"github.com/dsbraz/bud2/backend/internal/api"
 	apiauth "github.com/dsbraz/bud2/backend/internal/api/auth"
@@ -24,11 +30,6 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/infra/postgres"
 	"github.com/dsbraz/bud2/backend/internal/infra/postgres/sqlc"
 	"github.com/dsbraz/bud2/backend/internal/infra/rbac"
-	"github.com/exaring/otelpgx"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -90,8 +91,10 @@ func main() {
 	queries := sqlc.New(pool)
 	orgRepo := postgres.NewOrgRepository(queries)
 	userRepo := postgres.NewUserRepository(queries)
+	membershipRepo := postgres.NewMembershipRepository(queries)
 	txBootstrapper := postgres.NewTxBootstrapper(pool)
 	tokenIssuer := infraauth.NewTokenIssuer(cfg.JWTSecret)
+	passwordHasher := infraauth.NewDefaultBcryptPasswordHasher()
 
 	// Use cases
 	createOrg := apporg.NewCreateUseCase(orgRepo, logger)
@@ -99,17 +102,19 @@ func main() {
 	listOrg := apporg.NewListUseCase(orgRepo, logger)
 	updateOrg := apporg.NewUpdateUseCase(orgRepo, logger)
 
-	createUser := appuser.NewCreateUseCase(userRepo, logger)
-	getUser := appuser.NewGetUseCase(userRepo, logger)
-	listUser := appuser.NewListUseCase(userRepo, logger)
-	updateUser := appuser.NewUpdateUseCase(userRepo, logger)
+	createUser := appuser.NewCreateUseCase(userRepo, membershipRepo, orgRepo, passwordHasher, logger)
+	getUser := appuser.NewGetUseCase(userRepo, membershipRepo, logger)
+	listUser := appuser.NewListUseCase(userRepo, membershipRepo, logger)
+	updateUser := appuser.NewUpdateUseCase(userRepo, membershipRepo, logger)
 
-	bootstrapUC := appbootstrap.NewUseCase(orgRepo, txBootstrapper, tokenIssuer, logger)
-	loginUC := appauth.NewLoginUseCase(userRepo, tokenIssuer, logger)
+	bootstrapUC := appbootstrap.NewUseCase(orgRepo, txBootstrapper, tokenIssuer, passwordHasher, logger)
+	loginUC := appauth.NewLoginUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, logger)
+	getSessionUC := appauth.NewGetSessionUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, logger)
+	switchOrganizationUC := appauth.NewSwitchOrganizationUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, logger)
 
 	// Handlers + Router
 	bootstrapHandler := apibootstrap.NewHandler(bootstrapUC)
-	authHandler := apiauth.NewHandler(loginUC)
+	authHandler := apiauth.NewHandler(loginUC, getSessionUC, switchOrganizationUC)
 	orgHandler := apiorg.NewHandler(createOrg, getOrg, listOrg, updateOrg)
 	userHandler := apiuser.NewHandler(createUser, getUser, listUser, updateUser)
 	router := api.NewRouter(bootstrapHandler, authHandler, orgHandler, userHandler, api.RouterConfig{

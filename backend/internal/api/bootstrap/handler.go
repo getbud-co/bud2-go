@@ -12,26 +12,28 @@ import (
 )
 
 type createRequest struct {
-	OrganizationName string `json:"organization_name" validate:"required,min=2,max=100"`
-	OrganizationSlug string `json:"organization_slug" validate:"required,min=2,max=100,slug"`
-	AdminName        string `json:"admin_name" validate:"required,min=2,max=100"`
-	AdminEmail       string `json:"admin_email" validate:"required,email"`
-	AdminPassword    string `json:"admin_password" validate:"required,min=8"`
+	OrganizationName      string `json:"organization_name" validate:"required,min=2,max=100"`
+	OrganizationDomain    string `json:"organization_domain" validate:"required,email"`
+	OrganizationWorkspace string `json:"organization_workspace" validate:"required,min=2,max=100,slug"`
+	AdminName             string `json:"admin_name" validate:"required,min=2,max=100"`
+	AdminEmail            string `json:"admin_email" validate:"required,email"`
+	AdminPassword         string `json:"admin_password" validate:"required,min=8"`
 }
 
 type Response struct {
 	AccessToken  string `json:"access_token"`
 	TokenType    string `json:"token_type"`
 	Organization struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-		Slug string `json:"slug"`
+		ID        string `json:"id"`
+		Name      string `json:"name"`
+		Domain    string `json:"domain"`
+		Workspace string `json:"workspace"`
 	} `json:"organization"`
 	Admin struct {
-		ID    string `json:"id"`
-		Name  string `json:"name"`
-		Email string `json:"email"`
-		Role  string `json:"role"`
+		ID            string `json:"id"`
+		Name          string `json:"name"`
+		Email         string `json:"email"`
+		IsSystemAdmin bool   `json:"is_system_admin"`
 	} `json:"admin"`
 }
 
@@ -61,11 +63,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.uc.Execute(r.Context(), appbootstrap.Command{
-		OrganizationName: req.OrganizationName,
-		OrganizationSlug: req.OrganizationSlug,
-		AdminName:        req.AdminName,
-		AdminEmail:       req.AdminEmail,
-		AdminPassword:    req.AdminPassword,
+		OrganizationName:      req.OrganizationName,
+		OrganizationDomain:    req.OrganizationDomain,
+		OrganizationWorkspace: req.OrganizationWorkspace,
+		AdminName:             req.AdminName,
+		AdminEmail:            req.AdminEmail,
+		AdminPassword:         req.AdminPassword,
 	})
 	if err != nil {
 		switch {
@@ -80,11 +83,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	resp := Response{AccessToken: result.AccessToken, TokenType: "Bearer"}
 	resp.Organization.ID = result.Organization.ID.String()
 	resp.Organization.Name = result.Organization.Name
-	resp.Organization.Slug = result.Organization.Slug
+	resp.Organization.Domain = result.Organization.Domain
+	resp.Organization.Workspace = result.Organization.Workspace
 	resp.Admin.ID = result.Admin.ID.String()
 	resp.Admin.Name = result.Admin.Name
 	resp.Admin.Email = result.Admin.Email
-	resp.Admin.Role = string(result.Admin.Role)
+	resp.Admin.IsSystemAdmin = result.Admin.IsSystemAdmin
 
 	httputil.WriteJSON(w, http.StatusCreated, resp)
 }

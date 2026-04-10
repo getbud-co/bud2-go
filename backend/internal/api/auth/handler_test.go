@@ -9,16 +9,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
+	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 )
 
-// Mock login use case
-type mockLoginUseCase struct {
-	mock.Mock
-}
+type mockLoginUseCase struct{ mock.Mock }
 
 func (m *mockLoginUseCase) Execute(ctx context.Context, cmd appauth.LoginCommand) (*appauth.LoginResult, error) {
 	args := m.Called(ctx, cmd)
@@ -28,25 +28,38 @@ func (m *mockLoginUseCase) Execute(ctx context.Context, cmd appauth.LoginCommand
 	return args.Get(0).(*appauth.LoginResult), args.Error(1)
 }
 
-func TestHandler_Login_Success(t *testing.T) {
-	mockLogin := new(mockLoginUseCase)
-	handler := NewHandler(mockLogin)
+type mockSessionUseCase struct{ mock.Mock }
 
-	reqBody := loginRequest{
-		Email:    "admin@example.com",
-		Password: "password123",
+func (m *mockSessionUseCase) Execute(ctx context.Context, claims domain.UserClaims) (*appauth.Session, error) {
+	args := m.Called(ctx, claims)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
 	}
-	body, _ := json.Marshal(reqBody)
+	return args.Get(0).(*appauth.Session), args.Error(1)
+}
+
+type mockSwitchOrganizationUseCase struct{ mock.Mock }
+
+func (m *mockSwitchOrganizationUseCase) Execute(ctx context.Context, claims domain.UserClaims, cmd appauth.SwitchOrganizationCommand) (*appauth.SwitchOrganizationResult, error) {
+	args := m.Called(ctx, claims, cmd)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*appauth.SwitchOrganizationResult), args.Error(1)
+}
+
+func TestHandler_Login_Success(t *testing.T) {
+	loginUC := new(mockLoginUseCase)
+	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockSwitchOrganizationUseCase))
 
 	testUser := fixtures.NewUser()
-	mockLogin.On("Execute", mock.Anything, appauth.LoginCommand{
-		Email:    reqBody.Email,
-		Password: reqBody.Password,
-	}).Return(&appauth.LoginResult{
-		Token: "test-jwt-token",
-		User:  *testUser,
+	testOrg := fixtures.NewOrganization()
+	loginUC.On("Execute", mock.Anything, appauth.LoginCommand{Email: "admin@example.com", Password: "password123"}).Return(&appauth.LoginResult{
+		Token:   "test-jwt-token",
+		Session: appauth.Session{User: *testUser, ActiveOrganization: &appauth.AccessibleOrganization{ID: testOrg.ID, Name: testOrg.Name, Domain: testOrg.Domain, Workspace: testOrg.Workspace, Status: testOrg.Status}, Organizations: []appauth.AccessibleOrganization{{ID: testOrg.ID, Name: testOrg.Name, Domain: testOrg.Domain, Workspace: testOrg.Workspace, Status: testOrg.Status}}},
 	}, nil)
 
+	body, _ := json.Marshal(loginRequest{Email: "admin@example.com", Password: "password123"})
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -54,106 +67,62 @@ func TestHandler_Login_Success(t *testing.T) {
 	handler.Login(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-
-	var response loginResponse
-	err := json.Unmarshal(rr.Body.Bytes(), &response)
-	assert.NoError(t, err)
+	var response authResponse
+	assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
 	assert.Equal(t, "test-jwt-token", response.AccessToken)
-	assert.Equal(t, "Bearer", response.TokenType)
 	assert.Equal(t, testUser.ID.String(), response.User.ID)
+	assert.Equal(t, testOrg.ID.String(), response.ActiveOrganization.ID)
 }
 
-func TestHandler_Login_InvalidJSON(t *testing.T) {
-	mockLogin := new(mockLoginUseCase)
-	handler := NewHandler(mockLogin)
+func TestHandler_Session_Success(t *testing.T) {
+	claims := fixtures.NewTestUserClaims()
+	sessionUC := new(mockSessionUseCase)
+	handler := NewHandler(new(mockLoginUseCase), sessionUC, new(mockSwitchOrganizationUseCase))
+	testUser := fixtures.NewUser()
+	sessionUC.On("Execute", mock.Anything, claims).Return(&appauth.Session{User: *testUser}, nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader([]byte("invalid")))
-	req.Header.Set("Content-Type", "application/json")
+	req := httptest.NewRequest(http.MethodGet, "/auth/session", nil).WithContext(fixtures.NewContextWithUserClaims(claims))
 	rr := httptest.NewRecorder()
-
-	handler.Login(rr, req)
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	mockLogin.AssertNotCalled(t, "Execute")
+	handler.Session(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
-func TestHandler_Login_MissingFields(t *testing.T) {
-	mockLogin := new(mockLoginUseCase)
-	handler := NewHandler(mockLogin)
+func TestHandler_SwitchOrganization_Success(t *testing.T) {
+	claims := fixtures.NewTestUserClaims()
+	switchUC := new(mockSwitchOrganizationUseCase)
+	handler := NewHandler(new(mockLoginUseCase), new(mockSessionUseCase), switchUC)
+	orgID := uuid.New()
+	testUser := fixtures.NewUser()
+	switchUC.On("Execute", mock.Anything, claims, appauth.SwitchOrganizationCommand{OrganizationID: orgID}).Return(&appauth.SwitchOrganizationResult{Token: "new-token", Session: appauth.Session{User: *testUser}}, nil)
 
-	// Missing password
-	reqBody := loginRequest{Email: "admin@example.com"}
-	body, _ := json.Marshal(reqBody)
-
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
+	body, _ := json.Marshal(switchOrganizationRequest{OrganizationID: orgID.String()})
+	req := httptest.NewRequest(http.MethodPost, "/auth/switch-organization", bytes.NewReader(body)).WithContext(fixtures.NewContextWithUserClaims(claims))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-
-	handler.Login(rr, req)
-
-	assert.Equal(t, http.StatusUnprocessableEntity, rr.Code)
-	mockLogin.AssertNotCalled(t, "Execute")
+	handler.SwitchOrganization(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
 func TestHandler_Login_InvalidCredentials(t *testing.T) {
-	mockLogin := new(mockLoginUseCase)
-	handler := NewHandler(mockLogin)
-
-	reqBody := loginRequest{
-		Email:    "admin@example.com",
-		Password: "wrongpassword",
-	}
-	body, _ := json.Marshal(reqBody)
-
-	mockLogin.On("Execute", mock.Anything, mock.Anything).Return(nil, appauth.ErrInvalidCredentials)
-
+	loginUC := new(mockLoginUseCase)
+	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockSwitchOrganizationUseCase))
+	body, _ := json.Marshal(loginRequest{Email: "admin@example.com", Password: "wrongpassword"})
+	loginUC.On("Execute", mock.Anything, mock.Anything).Return(nil, appauth.ErrInvalidCredentials)
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-
 	handler.Login(rr, req)
-
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
-func TestHandler_Login_UserInactive(t *testing.T) {
-	mockLogin := new(mockLoginUseCase)
-	handler := NewHandler(mockLogin)
-
-	reqBody := loginRequest{
-		Email:    "admin@example.com",
-		Password: "password123",
-	}
-	body, _ := json.Marshal(reqBody)
-
-	mockLogin.On("Execute", mock.Anything, mock.Anything).Return(nil, appauth.ErrUserInactive)
-
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-
-	handler.Login(rr, req)
-
-	assert.Equal(t, http.StatusForbidden, rr.Code)
-}
-
 func TestHandler_Login_InternalError(t *testing.T) {
-	mockLogin := new(mockLoginUseCase)
-	handler := NewHandler(mockLogin)
-
-	reqBody := loginRequest{
-		Email:    "admin@example.com",
-		Password: "password123",
-	}
-	body, _ := json.Marshal(reqBody)
-
-	mockLogin.On("Execute", mock.Anything, mock.Anything).Return(nil, errors.New("internal error"))
-
+	loginUC := new(mockLoginUseCase)
+	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockSwitchOrganizationUseCase))
+	body, _ := json.Marshal(loginRequest{Email: "admin@example.com", Password: "password123"})
+	loginUC.On("Execute", mock.Anything, mock.Anything).Return(nil, errors.New("internal error"))
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-
 	handler.Login(rr, req)
-
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }

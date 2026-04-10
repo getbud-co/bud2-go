@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/dsbraz/bud2/backend/internal/domain"
 )
 
 type responseRecorder struct {

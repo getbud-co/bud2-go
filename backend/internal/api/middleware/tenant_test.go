@@ -6,8 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 )
 
 func TestTenantMiddleware_Success(t *testing.T) {
@@ -46,9 +47,10 @@ func TestTenantMiddleware_InvalidTenantType(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	// Add wrong type to context
+	// Add wrong type to context using a custom type to avoid linter warning
+	type contextKey string
 	ctx := req.Context()
-	ctx = context.WithValue(ctx, "tenant_id", "not-a-tenant-id")
+	ctx = context.WithValue(ctx, contextKey("tenant_id"), "not-a-tenant-id")
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 

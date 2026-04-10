@@ -5,15 +5,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/dsbraz/bud2/backend/internal/api/auth"
 	"github.com/dsbraz/bud2/backend/internal/api/health"
 	"github.com/dsbraz/bud2/backend/internal/api/middleware"
 	apiorg "github.com/dsbraz/bud2/backend/internal/api/organization"
 	apiuser "github.com/dsbraz/bud2/backend/internal/api/user"
-	"github.com/go-chi/chi/v5"
-	chimw "github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type BootstrapHandler interface {
@@ -63,6 +64,8 @@ func NewRouter(bootstrapHandler BootstrapHandler, authHandler *auth.Handler, org
 	r.Route("/auth", func(r chi.Router) {
 		r.Use(middleware.RateLimit(5, time.Minute)) // 5 requests per minute
 		r.Post("/login", authHandler.Login)
+		r.With(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret})).Get("/session", authHandler.Session)
+		r.With(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret})).Post("/switch-organization", authHandler.SwitchOrganization)
 	})
 
 	// Bootstrap with stricter rate limiting

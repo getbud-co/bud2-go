@@ -8,13 +8,14 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+
 	"github.com/dsbraz/bud2/backend/internal/api/httputil"
 	"github.com/dsbraz/bud2/backend/internal/api/validator"
 	apporg "github.com/dsbraz/bud2/backend/internal/app/organization"
 	"github.com/dsbraz/bud2/backend/internal/domain"
 	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 type createUseCase interface {
@@ -52,21 +53,24 @@ func NewHandler(
 // DTOs
 
 type createRequest struct {
-	Name   string `json:"name" validate:"required,min=2,max=100"`
-	Slug   string `json:"slug" validate:"required,min=2,max=100,slug"`
-	Status string `json:"status" validate:"omitempty,oneof=active inactive"`
+	Name      string `json:"name" validate:"required,min=2,max=100"`
+	Domain    string `json:"domain" validate:"required,email"`
+	Workspace string `json:"workspace" validate:"required,min=2,max=100,slug"`
+	Status    string `json:"status" validate:"omitempty,oneof=active inactive"`
 }
 
 type updateRequest struct {
-	Name   string `json:"name" validate:"required,min=2,max=100"`
-	Slug   string `json:"slug" validate:"required,min=2,max=100,slug"`
-	Status string `json:"status" validate:"required,oneof=active inactive"`
+	Name      string `json:"name" validate:"required,min=2,max=100"`
+	Domain    string `json:"domain" validate:"required,email"`
+	Workspace string `json:"workspace" validate:"required,min=2,max=100,slug"`
+	Status    string `json:"status" validate:"required,oneof=active inactive"`
 }
 
 type Response struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
-	Slug      string    `json:"slug"`
+	Domain    string    `json:"domain"`
+	Workspace string    `json:"workspace"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -83,7 +87,8 @@ func toResponse(o *org.Organization) Response {
 	return Response{
 		ID:        o.ID,
 		Name:      o.Name,
-		Slug:      o.Slug,
+		Domain:    o.Domain,
+		Workspace: o.Workspace,
 		Status:    string(o.Status),
 		CreatedAt: o.CreatedAt,
 		UpdatedAt: o.UpdatedAt,
@@ -106,9 +111,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.create.Execute(r.Context(), apporg.CreateCommand{
-		Name:   req.Name,
-		Slug:   req.Slug,
-		Status: req.Status,
+		Name:      req.Name,
+		Domain:    req.Domain,
+		Workspace: req.Workspace,
+		Status:    req.Status,
 	})
 	if err != nil {
 		handleError(w, err)
@@ -134,6 +140,8 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, toResponse(result))
 }
 
+const maxPageSize = 100
+
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
@@ -145,6 +153,9 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	if size <= 0 {
 		size = 20
+	}
+	if size > maxPageSize {
+		size = maxPageSize
 	}
 
 	cmd := apporg.ListCommand{Page: page, Size: size}
@@ -191,10 +202,11 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.update.Execute(r.Context(), apporg.UpdateCommand{
-		ID:     id,
-		Name:   req.Name,
-		Slug:   req.Slug,
-		Status: req.Status,
+		ID:        id,
+		Name:      req.Name,
+		Domain:    req.Domain,
+		Workspace: req.Workspace,
+		Status:    req.Status,
 	})
 	if err != nil {
 		handleError(w, err)
@@ -208,7 +220,7 @@ func handleError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, org.ErrNotFound):
 		httputil.WriteProblem(w, http.StatusNotFound, "Not Found", err.Error())
-	case errors.Is(err, org.ErrSlugExists):
+	case errors.Is(err, org.ErrDomainExists), errors.Is(err, org.ErrWorkspaceExists):
 		httputil.WriteProblem(w, http.StatusConflict, "Conflict", err.Error())
 	case errors.Is(err, domain.ErrValidation):
 		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())

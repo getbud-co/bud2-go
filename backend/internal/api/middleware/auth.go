@@ -4,10 +4,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dsbraz/bud2/backend/internal/api/httputil"
-	"github.com/dsbraz/bud2/backend/internal/domain"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+
+	"github.com/dsbraz/bud2/backend/internal/api/httputil"
+	"github.com/dsbraz/bud2/backend/internal/domain"
 )
 
 type AuthMiddlewareConfig struct {
@@ -59,31 +60,32 @@ func AuthMiddleware(cfg AuthMiddlewareConfig) func(http.Handler) http.Handler {
 				return
 			}
 
-			tenantIDStr, ok := claims["tenant_id"].(string)
-			if !ok {
-				httputil.WriteProblem(w, http.StatusUnauthorized, "Unauthorized", "Missing tenant_id in token")
-				return
-			}
-			tenantID, err := uuid.Parse(tenantIDStr)
-			if err != nil {
-				httputil.WriteProblem(w, http.StatusUnauthorized, "Unauthorized", "Invalid tenant_id format")
-				return
-			}
-
-			role, ok := claims["role"].(string)
-			if !ok {
-				httputil.WriteProblem(w, http.StatusUnauthorized, "Unauthorized", "Missing role in token")
-				return
-			}
-
 			userClaims := domain.UserClaims{
-				UserID:   domain.UserID(userID),
-				TenantID: domain.TenantID(tenantID),
-				Role:     role,
+				UserID: domain.UserID(userID),
+			}
+
+			if activeOrganizationIDStr, ok := claims["active_organization_id"].(string); ok && activeOrganizationIDStr != "" {
+				activeOrganizationID, err := uuid.Parse(activeOrganizationIDStr)
+				if err != nil {
+					httputil.WriteProblem(w, http.StatusUnauthorized, "Unauthorized", "Invalid active_organization_id format")
+					return
+				}
+				userClaims.ActiveOrganizationID = domain.TenantID(activeOrganizationID)
+				userClaims.HasActiveOrganization = true
+			}
+
+			if membershipRole, ok := claims["membership_role"].(string); ok {
+				userClaims.MembershipRole = membershipRole
+			}
+
+			if isSystemAdmin, ok := claims["is_system_admin"].(bool); ok {
+				userClaims.IsSystemAdmin = isSystemAdmin
 			}
 
 			ctx := domain.ClaimsToContext(r.Context(), userClaims)
-			ctx = domain.TenantIDToContext(ctx, userClaims.TenantID)
+			if userClaims.HasActiveOrganization {
+				ctx = domain.TenantIDToContext(ctx, userClaims.ActiveOrganizationID)
+			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -101,8 +103,12 @@ func RequirePermission(checker PermissionChecker, obj, act string) func(http.Han
 				httputil.WriteProblem(w, http.StatusUnauthorized, "Unauthorized", "Authentication required")
 				return
 			}
+			if claims.IsSystemAdmin {
+				next.ServeHTTP(w, r)
+				return
+			}
 
-			allowed, err := checker.Enforce(claims.Role, obj, act)
+			allowed, err := checker.Enforce(claims.MembershipRole, obj, act)
 			if err != nil {
 				httputil.WriteProblem(w, http.StatusInternalServerError, "Internal Server Error", "Authorization check failed")
 				return

@@ -5,11 +5,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+
+	"github.com/dsbraz/bud2/backend/internal/domain"
 )
 
 func TestRequestLogger_BasicRequest(t *testing.T) {
@@ -21,7 +22,7 @@ func TestRequestLogger_BasicRequest(t *testing.T) {
 	r.Use(RequestLogger)
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	req := httptest.NewRequest("GET", "/test", nil)
@@ -71,11 +72,13 @@ func TestRequestLogger_WithUserClaims(t *testing.T) {
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims := domain.UserClaims{
-				UserID:   domain.UserID(uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")),
-				TenantID: domain.TenantID(uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")),
-				Role:     "admin",
+				UserID:                domain.UserID(uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")),
+				ActiveOrganizationID:  domain.TenantID(uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")),
+				HasActiveOrganization: true,
+				MembershipRole:        "admin",
 			}
 			ctx := domain.ClaimsToContext(r.Context(), claims)
+			ctx = domain.TenantIDToContext(ctx, claims.ActiveOrganizationID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	})
