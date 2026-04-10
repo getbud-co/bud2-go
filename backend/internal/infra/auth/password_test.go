@@ -7,7 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHashPassword(t *testing.T) {
+func TestBcryptPasswordHasher_Hash(t *testing.T) {
+	hasher := NewDefaultBcryptPasswordHasher()
+
 	tests := []struct {
 		name     string
 		password string
@@ -32,7 +34,7 @@ func TestHashPassword(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			hash, err := HashPassword(tt.password)
+			hash, err := hasher.Hash(tt.password)
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Empty(t, hash)
@@ -40,14 +42,16 @@ func TestHashPassword(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotEmpty(t, hash)
 				// Hash should be different each time
-				hash2, _ := HashPassword(tt.password)
+				hash2, _ := hasher.Hash(tt.password)
 				assert.NotEqual(t, hash, hash2)
 			}
 		})
 	}
 }
 
-func TestVerifyPassword(t *testing.T) {
+func TestBcryptPasswordHasher_Verify(t *testing.T) {
+	hasher := NewDefaultBcryptPasswordHasher()
+
 	tests := []struct {
 		name     string
 		password string
@@ -83,29 +87,30 @@ func TestVerifyPassword(t *testing.T) {
 			if tt.hash == "" && tt.want {
 				// Generate hash for valid case
 				var err error
-				hash, err = HashPassword(tt.password)
+				hash, err = hasher.Hash(tt.password)
 				require.NoError(t, err)
 			} else {
 				hash = tt.hash
 			}
 
-			got := VerifyPassword(tt.password, hash)
+			got := hasher.Verify(tt.password, hash)
 			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestHashAndVerify(t *testing.T) {
+func TestBcryptPasswordHasher_HashAndVerify(t *testing.T) {
+	hasher := NewDefaultBcryptPasswordHasher()
 	password := "testpassword123"
 
 	// Hash password
-	hash, err := HashPassword(password)
+	hash, err := hasher.Hash(password)
 	require.NoError(t, err)
 	require.NotEmpty(t, hash)
 
 	// Verify correct password
-	assert.True(t, VerifyPassword(password, hash))
+	assert.True(t, hasher.Verify(password, hash))
 
 	// Verify wrong password
-	assert.False(t, VerifyPassword("wrongpassword", hash))
+	assert.False(t, hasher.Verify("wrongpassword", hash))
 }

@@ -1,2 +1,1 @@
--- Remove password_hash column from users table
-ALTER TABLE users DROP COLUMN IF EXISTS password_hash;
+DROP TABLE IF EXISTS organization_memberships;

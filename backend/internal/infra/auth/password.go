@@ -4,17 +4,33 @@ import (
 	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/dsbraz/bud2/backend/internal/domain/auth"
 )
 
-const bcryptCost = 12
+// BcryptPasswordHasher implements domain/auth.PasswordHasher using bcrypt.
+type BcryptPasswordHasher struct {
+	cost int
+}
 
-// HashPassword generates a bcrypt hash from a plain text password
-func HashPassword(password string) (string, error) {
+// NewBcryptPasswordHasher creates a new BcryptPasswordHasher with the specified cost.
+// Recommended cost is 10-12 for production.
+func NewBcryptPasswordHasher(cost int) *BcryptPasswordHasher {
+	return &BcryptPasswordHasher{cost: cost}
+}
+
+// NewDefaultBcryptPasswordHasher creates a BcryptPasswordHasher with default cost (12).
+func NewDefaultBcryptPasswordHasher() *BcryptPasswordHasher {
+	return NewBcryptPasswordHasher(12)
+}
+
+// Hash generates a bcrypt hash from a plain text password.
+func (h *BcryptPasswordHasher) Hash(password string) (string, error) {
 	if password == "" {
 		return "", fmt.Errorf("password cannot be empty")
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), h.cost)
 	if err != nil {
 		return "", fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -22,8 +38,8 @@ func HashPassword(password string) (string, error) {
 	return string(hash), nil
 }
 
-// VerifyPassword compares a plain text password with a bcrypt hash
-func VerifyPassword(password, hash string) bool {
+// Verify compares a plain text password with a bcrypt hash.
+func (h *BcryptPasswordHasher) Verify(password, hash string) bool {
 	if password == "" || hash == "" {
 		return false
 	}
@@ -31,3 +47,6 @@ func VerifyPassword(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
+
+// Compile-time check that BcryptPasswordHasher implements PasswordHasher interface.
+var _ auth.PasswordHasher = (*BcryptPasswordHasher)(nil)

@@ -7,12 +7,14 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 const countOrganizations = `-- name: CountOrganizations :one
 SELECT COUNT(*) FROM organizations
+WHERE deleted_at IS NULL
 `
 
 func (q *Queries) CountOrganizations(ctx context.Context) (int64, error) {
@@ -25,6 +27,7 @@ func (q *Queries) CountOrganizations(ctx context.Context) (int64, error) {
 const countOrganizationsByStatus = `-- name: CountOrganizationsByStatus :one
 SELECT COUNT(*) FROM organizations
 WHERE status = $1
+  AND deleted_at IS NULL
 `
 
 func (q *Queries) CountOrganizationsByStatus(ctx context.Context, status string) (int64, error) {
@@ -35,24 +38,72 @@ func (q *Queries) CountOrganizationsByStatus(ctx context.Context, status string)
 }
 
 const createOrganization = `-- name: CreateOrganization :one
-INSERT INTO organizations (name, slug, status)
-VALUES ($1, $2, $3)
-RETURNING id, name, slug, status, created_at, updated_at
+INSERT INTO organizations (name, domain, workspace, status)
+VALUES ($1, $2, $3, $4)
+RETURNING id, name, domain, workspace, status, created_at, updated_at
 `
 
 type CreateOrganizationParams struct {
-	Name   string
-	Slug   string
-	Status string
+	Name      string
+	Domain    string
+	Workspace string
+	Status    string
 }
 
-func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (Organization, error) {
-	row := q.db.QueryRow(ctx, createOrganization, arg.Name, arg.Slug, arg.Status)
-	var i Organization
+type CreateOrganizationRow struct {
+	ID        uuid.UUID
+	Name      string
+	Domain    string
+	Workspace string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (CreateOrganizationRow, error) {
+	row := q.db.QueryRow(ctx, createOrganization,
+		arg.Name,
+		arg.Domain,
+		arg.Workspace,
+		arg.Status,
+	)
+	var i CreateOrganizationRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Slug,
+		&i.Domain,
+		&i.Workspace,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getOrganizationByDomain = `-- name: GetOrganizationByDomain :one
+SELECT id, name, domain, workspace, status, created_at, updated_at FROM organizations
+WHERE LOWER(domain) = LOWER($1)
+  AND deleted_at IS NULL
+`
+
+type GetOrganizationByDomainRow struct {
+	ID        uuid.UUID
+	Name      string
+	Domain    string
+	Workspace string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) GetOrganizationByDomain(ctx context.Context, lower string) (GetOrganizationByDomainRow, error) {
+	row := q.db.QueryRow(ctx, getOrganizationByDomain, lower)
+	var i GetOrganizationByDomainRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Domain,
+		&i.Workspace,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -61,17 +112,29 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
-SELECT id, name, slug, status, created_at, updated_at FROM organizations
+SELECT id, name, domain, workspace, status, created_at, updated_at FROM organizations
 WHERE id = $1
+  AND deleted_at IS NULL
 `
 
-func (q *Queries) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organization, error) {
+type GetOrganizationByIDRow struct {
+	ID        uuid.UUID
+	Name      string
+	Domain    string
+	Workspace string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) GetOrganizationByID(ctx context.Context, id uuid.UUID) (GetOrganizationByIDRow, error) {
 	row := q.db.QueryRow(ctx, getOrganizationByID, id)
-	var i Organization
+	var i GetOrganizationByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Slug,
+		&i.Domain,
+		&i.Workspace,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -79,18 +142,30 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id uuid.UUID) (Organi
 	return i, err
 }
 
-const getOrganizationBySlug = `-- name: GetOrganizationBySlug :one
-SELECT id, name, slug, status, created_at, updated_at FROM organizations
-WHERE slug = $1
+const getOrganizationByWorkspace = `-- name: GetOrganizationByWorkspace :one
+SELECT id, name, domain, workspace, status, created_at, updated_at FROM organizations
+WHERE workspace = $1
+  AND deleted_at IS NULL
 `
 
-func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organization, error) {
-	row := q.db.QueryRow(ctx, getOrganizationBySlug, slug)
-	var i Organization
+type GetOrganizationByWorkspaceRow struct {
+	ID        uuid.UUID
+	Name      string
+	Domain    string
+	Workspace string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) GetOrganizationByWorkspace(ctx context.Context, workspace string) (GetOrganizationByWorkspaceRow, error) {
+	row := q.db.QueryRow(ctx, getOrganizationByWorkspace, workspace)
+	var i GetOrganizationByWorkspaceRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Slug,
+		&i.Domain,
+		&i.Workspace,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -99,7 +174,8 @@ func (q *Queries) GetOrganizationBySlug(ctx context.Context, slug string) (Organ
 }
 
 const listOrganizations = `-- name: ListOrganizations :many
-SELECT id, name, slug, status, created_at, updated_at FROM organizations
+SELECT id, name, domain, workspace, status, created_at, updated_at FROM organizations
+WHERE deleted_at IS NULL
 ORDER BY name ASC
 LIMIT $1
 OFFSET $2
@@ -110,19 +186,30 @@ type ListOrganizationsParams struct {
 	Offset int32
 }
 
-func (q *Queries) ListOrganizations(ctx context.Context, arg ListOrganizationsParams) ([]Organization, error) {
+type ListOrganizationsRow struct {
+	ID        uuid.UUID
+	Name      string
+	Domain    string
+	Workspace string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) ListOrganizations(ctx context.Context, arg ListOrganizationsParams) ([]ListOrganizationsRow, error) {
 	rows, err := q.db.Query(ctx, listOrganizations, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Organization
+	var items []ListOrganizationsRow
 	for rows.Next() {
-		var i Organization
+		var i ListOrganizationsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.Slug,
+			&i.Domain,
+			&i.Workspace,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -138,8 +225,9 @@ func (q *Queries) ListOrganizations(ctx context.Context, arg ListOrganizationsPa
 }
 
 const listOrganizationsByStatus = `-- name: ListOrganizationsByStatus :many
-SELECT id, name, slug, status, created_at, updated_at FROM organizations
+SELECT id, name, domain, workspace, status, created_at, updated_at FROM organizations
 WHERE status = $1
+  AND deleted_at IS NULL
 ORDER BY name ASC
 LIMIT $2
 OFFSET $3
@@ -151,19 +239,30 @@ type ListOrganizationsByStatusParams struct {
 	Offset int32
 }
 
-func (q *Queries) ListOrganizationsByStatus(ctx context.Context, arg ListOrganizationsByStatusParams) ([]Organization, error) {
+type ListOrganizationsByStatusRow struct {
+	ID        uuid.UUID
+	Name      string
+	Domain    string
+	Workspace string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) ListOrganizationsByStatus(ctx context.Context, arg ListOrganizationsByStatusParams) ([]ListOrganizationsByStatusRow, error) {
 	rows, err := q.db.Query(ctx, listOrganizationsByStatus, arg.Status, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Organization
+	var items []ListOrganizationsByStatusRow
 	for rows.Next() {
-		var i Organization
+		var i ListOrganizationsByStatusRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.Slug,
+			&i.Domain,
+			&i.Workspace,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -178,36 +277,63 @@ func (q *Queries) ListOrganizationsByStatus(ctx context.Context, arg ListOrganiz
 	return items, nil
 }
 
+const softDeleteOrganization = `-- name: SoftDeleteOrganization :exec
+UPDATE organizations
+SET deleted_at = NOW()
+WHERE id = $1
+  AND deleted_at IS NULL
+`
+
+func (q *Queries) SoftDeleteOrganization(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, softDeleteOrganization, id)
+	return err
+}
+
 const updateOrganization = `-- name: UpdateOrganization :one
 UPDATE organizations
 SET
     name       = $2,
-    slug       = $3,
-    status     = $4,
+    domain     = $3,
+    workspace  = $4,
+    status     = $5,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, slug, status, created_at, updated_at
+  AND deleted_at IS NULL
+RETURNING id, name, domain, workspace, status, created_at, updated_at
 `
 
 type UpdateOrganizationParams struct {
-	ID     uuid.UUID
-	Name   string
-	Slug   string
-	Status string
+	ID        uuid.UUID
+	Name      string
+	Domain    string
+	Workspace string
+	Status    string
 }
 
-func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error) {
+type UpdateOrganizationRow struct {
+	ID        uuid.UUID
+	Name      string
+	Domain    string
+	Workspace string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (UpdateOrganizationRow, error) {
 	row := q.db.QueryRow(ctx, updateOrganization,
 		arg.ID,
 		arg.Name,
-		arg.Slug,
+		arg.Domain,
+		arg.Workspace,
 		arg.Status,
 	)
-	var i Organization
+	var i UpdateOrganizationRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Slug,
+		&i.Domain,
+		&i.Workspace,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,

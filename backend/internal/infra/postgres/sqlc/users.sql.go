@@ -7,23 +7,19 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 const countSearchUsers = `-- name: CountSearchUsers :one
 SELECT COUNT(*) FROM users
-WHERE tenant_id = $1
-  AND (name ILIKE $2 OR email ILIKE $2)
+WHERE deleted_at IS NULL
+  AND (name ILIKE $1 OR email ILIKE $1)
 `
 
-type CountSearchUsersParams struct {
-	TenantID uuid.UUID
-	Name     string
-}
-
-func (q *Queries) CountSearchUsers(ctx context.Context, arg CountSearchUsersParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countSearchUsers, arg.TenantID, arg.Name)
+func (q *Queries) CountSearchUsers(ctx context.Context, name string) (int64, error) {
+	row := q.db.QueryRow(ctx, countSearchUsers, name)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -31,11 +27,11 @@ func (q *Queries) CountSearchUsers(ctx context.Context, arg CountSearchUsersPara
 
 const countUsers = `-- name: CountUsers :one
 SELECT COUNT(*) FROM users
-WHERE tenant_id = $1
+WHERE deleted_at IS NULL
 `
 
-func (q *Queries) CountUsers(ctx context.Context, tenantID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countUsers, tenantID)
+func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsers)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -43,170 +39,173 @@ func (q *Queries) CountUsers(ctx context.Context, tenantID uuid.UUID) (int64, er
 
 const countUsersByStatus = `-- name: CountUsersByStatus :one
 SELECT COUNT(*) FROM users
-WHERE tenant_id = $1 AND status = $2
+WHERE status = $1
+  AND deleted_at IS NULL
 `
 
-type CountUsersByStatusParams struct {
-	TenantID uuid.UUID
-	Status   string
-}
-
-func (q *Queries) CountUsersByStatus(ctx context.Context, arg CountUsersByStatusParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countUsersByStatus, arg.TenantID, arg.Status)
+func (q *Queries) CountUsersByStatus(ctx context.Context, status string) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsersByStatus, status)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, tenant_id, name, email, password_hash, role, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, tenant_id, name, email, role, status, created_at, updated_at, password_hash
+INSERT INTO users (id, name, email, password_hash, status, is_system_admin)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, name, email, password_hash, status, is_system_admin, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	ID           uuid.UUID
-	TenantID     uuid.UUID
-	Name         string
-	Email        string
-	PasswordHash string
-	Role         string
-	Status       string
+	ID            uuid.UUID
+	Name          string
+	Email         string
+	PasswordHash  string
+	Status        string
+	IsSystemAdmin bool
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+type CreateUserRow struct {
+	ID            uuid.UUID
+	Name          string
+	Email         string
+	PasswordHash  string
+	Status        string
+	IsSystemAdmin bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
 	row := q.db.QueryRow(ctx, createUser,
 		arg.ID,
-		arg.TenantID,
 		arg.Name,
 		arg.Email,
 		arg.PasswordHash,
-		arg.Role,
 		arg.Status,
+		arg.IsSystemAdmin,
 	)
-	var i User
+	var i CreateUserRow
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
 		&i.Name,
 		&i.Email,
-		&i.Role,
+		&i.PasswordHash,
 		&i.Status,
+		&i.IsSystemAdmin,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, tenant_id, name, email, role, status, created_at, updated_at, password_hash FROM users
-WHERE email = $1 AND tenant_id = $2
+SELECT id, name, email, password_hash, status, is_system_admin, created_at, updated_at FROM users
+WHERE LOWER(email) = LOWER($1)
+  AND deleted_at IS NULL
 `
 
-type GetUserByEmailParams struct {
-	Email    string
-	TenantID uuid.UUID
+type GetUserByEmailRow struct {
+	ID            uuid.UUID
+	Name          string
+	Email         string
+	PasswordHash  string
+	Status        string
+	IsSystemAdmin bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
-func (q *Queries) GetUserByEmail(ctx context.Context, arg GetUserByEmailParams) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByEmail, arg.Email, arg.TenantID)
-	var i User
+func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (GetUserByEmailRow, error) {
+	row := q.db.QueryRow(ctx, getUserByEmail, lower)
+	var i GetUserByEmailRow
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
 		&i.Name,
 		&i.Email,
-		&i.Role,
+		&i.PasswordHash,
 		&i.Status,
+		&i.IsSystemAdmin,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.PasswordHash,
-	)
-	return i, err
-}
-
-const getUserByEmailForLogin = `-- name: GetUserByEmailForLogin :one
-SELECT id, tenant_id, name, email, role, status, created_at, updated_at, password_hash FROM users
-WHERE email = $1
-`
-
-func (q *Queries) GetUserByEmailForLogin(ctx context.Context, email string) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByEmailForLogin, email)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.TenantID,
-		&i.Name,
-		&i.Email,
-		&i.Role,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, tenant_id, name, email, role, status, created_at, updated_at, password_hash FROM users
-WHERE id = $1 AND tenant_id = $2
+SELECT id, name, email, password_hash, status, is_system_admin, created_at, updated_at FROM users
+WHERE id = $1
+  AND deleted_at IS NULL
 `
 
-type GetUserByIDParams struct {
-	ID       uuid.UUID
-	TenantID uuid.UUID
+type GetUserByIDRow struct {
+	ID            uuid.UUID
+	Name          string
+	Email         string
+	PasswordHash  string
+	Status        string
+	IsSystemAdmin bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
-func (q *Queries) GetUserByID(ctx context.Context, arg GetUserByIDParams) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByID, arg.ID, arg.TenantID)
-	var i User
+func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error) {
+	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i GetUserByIDRow
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
 		&i.Name,
 		&i.Email,
-		&i.Role,
+		&i.PasswordHash,
 		&i.Status,
+		&i.IsSystemAdmin,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, tenant_id, name, email, role, status, created_at, updated_at, password_hash FROM users
-WHERE tenant_id = $1
+SELECT id, name, email, password_hash, status, is_system_admin, created_at, updated_at FROM users
+WHERE deleted_at IS NULL
 ORDER BY name ASC
-LIMIT $2 OFFSET $3
+LIMIT $1 OFFSET $2
 `
 
 type ListUsersParams struct {
-	TenantID uuid.UUID
-	Limit    int32
-	Offset   int32
+	Limit  int32
+	Offset int32
 }
 
-func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
-	rows, err := q.db.Query(ctx, listUsers, arg.TenantID, arg.Limit, arg.Offset)
+type ListUsersRow struct {
+	ID            uuid.UUID
+	Name          string
+	Email         string
+	PasswordHash  string
+	Status        string
+	IsSystemAdmin bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error) {
+	rows, err := q.db.Query(ctx, listUsers, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []ListUsersRow
 	for rows.Next() {
-		var i User
+		var i ListUsersRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.TenantID,
 			&i.Name,
 			&i.Email,
-			&i.Role,
+			&i.PasswordHash,
 			&i.Status,
+			&i.IsSystemAdmin,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.PasswordHash,
 		); err != nil {
 			return nil, err
 		}
@@ -219,44 +218,48 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 }
 
 const listUsersByStatus = `-- name: ListUsersByStatus :many
-SELECT id, tenant_id, name, email, role, status, created_at, updated_at, password_hash FROM users
-WHERE tenant_id = $1
-  AND status = $2
+SELECT id, name, email, password_hash, status, is_system_admin, created_at, updated_at FROM users
+WHERE status = $1
+  AND deleted_at IS NULL
 ORDER BY name ASC
-LIMIT $3 OFFSET $4
+LIMIT $2 OFFSET $3
 `
 
 type ListUsersByStatusParams struct {
-	TenantID uuid.UUID
-	Status   string
-	Limit    int32
-	Offset   int32
+	Status string
+	Limit  int32
+	Offset int32
 }
 
-func (q *Queries) ListUsersByStatus(ctx context.Context, arg ListUsersByStatusParams) ([]User, error) {
-	rows, err := q.db.Query(ctx, listUsersByStatus,
-		arg.TenantID,
-		arg.Status,
-		arg.Limit,
-		arg.Offset,
-	)
+type ListUsersByStatusRow struct {
+	ID            uuid.UUID
+	Name          string
+	Email         string
+	PasswordHash  string
+	Status        string
+	IsSystemAdmin bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) ListUsersByStatus(ctx context.Context, arg ListUsersByStatusParams) ([]ListUsersByStatusRow, error) {
+	rows, err := q.db.Query(ctx, listUsersByStatus, arg.Status, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []ListUsersByStatusRow
 	for rows.Next() {
-		var i User
+		var i ListUsersByStatusRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.TenantID,
 			&i.Name,
 			&i.Email,
-			&i.Role,
+			&i.PasswordHash,
 			&i.Status,
+			&i.IsSystemAdmin,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.PasswordHash,
 		); err != nil {
 			return nil, err
 		}
@@ -269,44 +272,48 @@ func (q *Queries) ListUsersByStatus(ctx context.Context, arg ListUsersByStatusPa
 }
 
 const searchUsers = `-- name: SearchUsers :many
-SELECT id, tenant_id, name, email, role, status, created_at, updated_at, password_hash FROM users
-WHERE tenant_id = $1
-  AND (name ILIKE $2 OR email ILIKE $2)
+SELECT id, name, email, password_hash, status, is_system_admin, created_at, updated_at FROM users
+WHERE deleted_at IS NULL
+  AND (name ILIKE $1 OR email ILIKE $1)
 ORDER BY name ASC
-LIMIT $3 OFFSET $4
+LIMIT $2 OFFSET $3
 `
 
 type SearchUsersParams struct {
-	TenantID uuid.UUID
-	Name     string
-	Limit    int32
-	Offset   int32
+	Name   string
+	Limit  int32
+	Offset int32
 }
 
-func (q *Queries) SearchUsers(ctx context.Context, arg SearchUsersParams) ([]User, error) {
-	rows, err := q.db.Query(ctx, searchUsers,
-		arg.TenantID,
-		arg.Name,
-		arg.Limit,
-		arg.Offset,
-	)
+type SearchUsersRow struct {
+	ID            uuid.UUID
+	Name          string
+	Email         string
+	PasswordHash  string
+	Status        string
+	IsSystemAdmin bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) SearchUsers(ctx context.Context, arg SearchUsersParams) ([]SearchUsersRow, error) {
+	rows, err := q.db.Query(ctx, searchUsers, arg.Name, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []SearchUsersRow
 	for rows.Next() {
-		var i User
+		var i SearchUsersRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.TenantID,
 			&i.Name,
 			&i.Email,
-			&i.Role,
+			&i.PasswordHash,
 			&i.Status,
+			&i.IsSystemAdmin,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.PasswordHash,
 		); err != nil {
 			return nil, err
 		}
@@ -318,46 +325,70 @@ func (q *Queries) SearchUsers(ctx context.Context, arg SearchUsersParams) ([]Use
 	return items, nil
 }
 
+const softDeleteUser = `-- name: SoftDeleteUser :exec
+UPDATE users
+SET deleted_at = NOW()
+WHERE id = $1
+  AND deleted_at IS NULL
+`
+
+func (q *Queries) SoftDeleteUser(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, softDeleteUser, id)
+	return err
+}
+
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
-SET name       = $3,
-    email      = $4,
-    role       = $5,
-    status     = $6,
+SET name       = $2,
+    email      = $3,
+    password_hash = $4,
+    status     = $5,
+    is_system_admin = $6,
     updated_at = NOW()
-WHERE id = $1 AND tenant_id = $2
-RETURNING id, tenant_id, name, email, role, status, created_at, updated_at, password_hash
+WHERE id = $1
+  AND deleted_at IS NULL
+RETURNING id, name, email, password_hash, status, is_system_admin, created_at, updated_at
 `
 
 type UpdateUserParams struct {
-	ID       uuid.UUID
-	TenantID uuid.UUID
-	Name     string
-	Email    string
-	Role     string
-	Status   string
+	ID            uuid.UUID
+	Name          string
+	Email         string
+	PasswordHash  string
+	Status        string
+	IsSystemAdmin bool
 }
 
-func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+type UpdateUserRow struct {
+	ID            uuid.UUID
+	Name          string
+	Email         string
+	PasswordHash  string
+	Status        string
+	IsSystemAdmin bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateUserRow, error) {
 	row := q.db.QueryRow(ctx, updateUser,
 		arg.ID,
-		arg.TenantID,
 		arg.Name,
 		arg.Email,
-		arg.Role,
+		arg.PasswordHash,
 		arg.Status,
+		arg.IsSystemAdmin,
 	)
-	var i User
+	var i UpdateUserRow
 	err := row.Scan(
 		&i.ID,
-		&i.TenantID,
 		&i.Name,
 		&i.Email,
-		&i.Role,
+		&i.PasswordHash,
 		&i.Status,
+		&i.IsSystemAdmin,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.PasswordHash,
 	)
 	return i, err
 }

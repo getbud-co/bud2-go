@@ -18,7 +18,9 @@ func TestNewProvider_NoOp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	defer provider.Shutdown(context.Background())
+	defer func() {
+		_ = provider.Shutdown(context.Background())
+	}()
 
 	if provider.TracerProvider == nil {
 		t.Error("expected TracerProvider to be set")
@@ -60,7 +62,9 @@ func TestNewProvider_WithEndpoint(t *testing.T) {
 	}
 
 	if provider != nil {
-		defer provider.Shutdown(context.Background())
+		defer func() {
+			_ = provider.Shutdown(context.Background())
+		}()
 	}
 }
 

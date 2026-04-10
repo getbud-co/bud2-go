@@ -8,26 +8,41 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Organization struct {
 	ID        uuid.UUID
 	Name      string
-	Slug      string
+	Domain    string
+	Workspace string
 	Status    string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	DeletedAt pgtype.Timestamptz
+}
+
+type OrganizationMembership struct {
+	ID              uuid.UUID
+	OrganizationID  uuid.UUID
+	UserID          uuid.UUID
+	Role            string
+	Status          string
+	InvitedByUserID pgtype.UUID
+	JoinedAt        pgtype.Timestamptz
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	DeletedAt       pgtype.Timestamptz
 }
 
 type User struct {
-	ID        uuid.UUID
-	TenantID  uuid.UUID
-	Name      string
-	Email     string
-	Role      string
-	Status    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	// Bcrypt hash of user password
-	PasswordHash string
+	ID            uuid.UUID
+	Name          string
+	Email         string
+	PasswordHash  string
+	Status        string
+	IsSystemAdmin bool
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DeletedAt     pgtype.Timestamptz
 }
