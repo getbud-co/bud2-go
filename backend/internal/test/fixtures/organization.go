@@ -3,25 +3,27 @@ package fixtures
 import (
 	"time"
 
-	"github.com/dsbraz/bud2/backend/internal/domain/organization"
 	"github.com/google/uuid"
+
+	"github.com/dsbraz/bud2/backend/internal/domain/organization"
 )
 
 func NewOrganization() *organization.Organization {
 	return &organization.Organization{
 		ID:        uuid.MustParse("550e8400-e29b-41d4-a716-446655440000"),
 		Name:      "Test Organization",
-		Slug:      "test-org",
+		Domain:    "example.com",
+		Workspace: "example",
 		Status:    organization.StatusActive,
 		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 	}
 }
 
-func NewOrganizationWithName(name, slug string) *organization.Organization {
+func NewOrganizationWithName(name, workspace string) *organization.Organization {
 	org := NewOrganization()
 	org.Name = name
-	org.Slug = slug
+	org.Workspace = workspace
 	return org
 }
 
@@ -37,7 +39,8 @@ func NewOrganizationList(count int) []organization.Organization {
 		org := NewOrganization()
 		org.ID = uuid.MustParse("550e8400-e29b-41d4-a716-446655440001")
 		org.Name = "Org " + string(rune('A'+i))
-		org.Slug = "org-" + string(rune('a'+i))
+		org.Domain = "org" + string(rune('a'+i)) + ".com"
+		org.Workspace = "org-" + string(rune('a'+i))
 		orgs[i] = *org
 	}
 	return orgs

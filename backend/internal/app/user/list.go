@@ -5,29 +5,28 @@ import (
 	"log/slog"
 
 	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/dsbraz/bud2/backend/internal/domain/membership"
 	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
 )
 
 type ListCommand struct {
-	TenantID domain.TenantID
-	Status   *string
-	Search   *string
-	Page     int
-	Size     int
+	OrganizationID domain.TenantID
+	Status         *string
+	Page           int
+	Size           int
 }
 
 type ListUseCase struct {
-	repo   usr.Repository
-	logger *slog.Logger
+	users       usr.Repository
+	memberships membership.Repository
+	logger      *slog.Logger
 }
 
-func NewListUseCase(repo usr.Repository, logger *slog.Logger) *ListUseCase {
-	return &ListUseCase{repo: repo, logger: logger}
+func NewListUseCase(users usr.Repository, memberships membership.Repository, logger *slog.Logger) *ListUseCase {
+	return &ListUseCase{users: users, memberships: memberships, logger: logger}
 }
 
-func (uc *ListUseCase) Execute(ctx context.Context, cmd ListCommand) (usr.ListResult, error) {
-	uc.logger.Debug("listing users", "tenant_id", cmd.TenantID, "page", cmd.Page, "size", cmd.Size)
-
+func (uc *ListUseCase) Execute(ctx context.Context, cmd ListCommand) (MemberListResult, error) {
 	if cmd.Size <= 0 {
 		cmd.Size = 20
 	}
@@ -38,25 +37,25 @@ func (uc *ListUseCase) Execute(ctx context.Context, cmd ListCommand) (usr.ListRe
 		cmd.Page = 1
 	}
 
-	filter := usr.ListFilter{
-		TenantID: cmd.TenantID,
-		Page:     cmd.Page,
-		Size:     cmd.Size,
-	}
+	filter := membership.ListByOrganizationFilter{OrganizationID: cmd.OrganizationID.UUID(), Page: cmd.Page, Size: cmd.Size}
 	if cmd.Status != nil {
-		s := usr.Status(*cmd.Status)
-		filter.Status = &s
-	}
-	if cmd.Search != nil && *cmd.Search != "" {
-		filter.Search = cmd.Search
+		status := membership.Status(*cmd.Status)
+		filter.Status = &status
 	}
 
-	result, err := uc.repo.List(ctx, filter)
+	result, err := uc.memberships.ListByOrganization(ctx, filter)
 	if err != nil {
-		uc.logger.Error("failed to list users", "error", err, "tenant_id", cmd.TenantID)
-		return usr.ListResult{}, err
+		return MemberListResult{}, err
 	}
 
-	uc.logger.Debug("users listed", "count", len(result.Users), "total", result.Total, "tenant_id", cmd.TenantID)
-	return result, nil
+	members := make([]Member, 0, len(result.Memberships))
+	for _, membershipItem := range result.Memberships {
+		u, err := uc.users.GetByID(ctx, membershipItem.UserID)
+		if err != nil {
+			return MemberListResult{}, err
+		}
+		members = append(members, Member{User: *u, OrganizationID: membershipItem.OrganizationID, MembershipRole: membershipItem.Role, MembershipStatus: membershipItem.Status})
+	}
+
+	return MemberListResult{Members: members, Total: result.Total}, nil
 }

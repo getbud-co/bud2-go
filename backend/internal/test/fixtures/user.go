@@ -3,21 +3,21 @@ package fixtures
 import (
 	"time"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	"github.com/dsbraz/bud2/backend/internal/domain/user"
 	"github.com/google/uuid"
+
+	"github.com/dsbraz/bud2/backend/internal/domain/user"
 )
 
 func NewUser() *user.User {
 	return &user.User{
-		ID:        uuid.MustParse("660e8400-e29b-41d4-a716-446655440000"),
-		TenantID:  domain.TenantID(uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")),
-		Name:      "Test User",
-		Email:     "test@example.com",
-		Role:      user.RoleAdmin,
-		Status:    user.StatusActive,
-		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		ID:            uuid.MustParse("660e8400-e29b-41d4-a716-446655440000"),
+		Name:          "Test User",
+		Email:         "test@example.com",
+		PasswordHash:  "",
+		Status:        user.StatusActive,
+		IsSystemAdmin: false,
+		CreatedAt:     time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 	}
 }
 
@@ -27,15 +27,9 @@ func NewUserWithEmail(email string) *user.User {
 	return u
 }
 
-func NewManager() *user.User {
+func NewSystemAdmin() *user.User {
 	u := NewUser()
-	u.Role = user.RoleManager
-	return u
-}
-
-func NewCollaborator() *user.User {
-	u := NewUser()
-	u.Role = user.RoleCollaborator
+	u.IsSystemAdmin = true
 	return u
 }
 

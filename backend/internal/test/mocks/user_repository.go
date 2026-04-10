@@ -3,10 +3,10 @@ package mocks
 import (
 	"context"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	"github.com/dsbraz/bud2/backend/internal/domain/user"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/dsbraz/bud2/backend/internal/domain/user"
 )
 
 type UserRepository struct {
@@ -21,23 +21,15 @@ func (m *UserRepository) Create(ctx context.Context, u *user.User) (*user.User, 
 	return args.Get(0).(*user.User), args.Error(1)
 }
 
-func (m *UserRepository) GetByID(ctx context.Context, tenantID domain.TenantID, id uuid.UUID) (*user.User, error) {
-	args := m.Called(ctx, tenantID, id)
+func (m *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*user.User, error) {
+	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*user.User), args.Error(1)
 }
 
-func (m *UserRepository) GetByEmail(ctx context.Context, tenantID domain.TenantID, email string) (*user.User, error) {
-	args := m.Called(ctx, tenantID, email)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*user.User), args.Error(1)
-}
-
-func (m *UserRepository) GetByEmailForLogin(ctx context.Context, email string) (*user.User, error) {
+func (m *UserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
 	args := m.Called(ctx, email)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)

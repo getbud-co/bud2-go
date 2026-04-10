@@ -4,8 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
 	"github.com/google/uuid"
+
+	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
 )
 
 type GetUseCase struct {

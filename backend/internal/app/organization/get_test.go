@@ -4,43 +4,38 @@ import (
 	"context"
 	"testing"
 
-	"github.com/dsbraz/bud2/backend/internal/domain/organization"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
-	"github.com/dsbraz/bud2/backend/internal/test/mocks"
-	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
+	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
+	"github.com/dsbraz/bud2/backend/internal/test/mocks"
+	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 )
 
 func TestGetUseCase_Execute_Success(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewGetUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewGetUseCase(repo, testutil.NewDiscardLogger())
 
-	expectedOrg := fixtures.NewOrganization()
-	id := expectedOrg.ID
+	expected := fixtures.NewOrganization()
+	repo.On("GetByID", mock.Anything, expected.ID).Return(expected, nil)
 
-	mockRepo.On("GetByID", mock.Anything, id).Return(expectedOrg, nil)
-
-	result, err := uc.Execute(context.Background(), id)
+	result, err := uc.Execute(context.Background(), expected.ID)
 
 	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, expectedOrg.ID, result.ID)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, expected, result)
 }
 
 func TestGetUseCase_Execute_NotFound(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewGetUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewGetUseCase(repo, testutil.NewDiscardLogger())
 
 	id := uuid.New()
-
-	mockRepo.On("GetByID", mock.Anything, id).Return(nil, organization.ErrNotFound)
+	repo.On("GetByID", mock.Anything, id).Return(nil, org.ErrNotFound)
 
 	result, err := uc.Execute(context.Background(), id)
 
-	assert.ErrorIs(t, err, organization.ErrNotFound)
+	assert.ErrorIs(t, err, org.ErrNotFound)
 	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
 }

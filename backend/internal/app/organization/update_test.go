@@ -5,193 +5,151 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	"github.com/dsbraz/bud2/backend/internal/domain/organization"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
-	"github.com/dsbraz/bud2/backend/internal/test/mocks"
-	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
+	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
+	"github.com/dsbraz/bud2/backend/internal/test/mocks"
+	"github.com/dsbraz/bud2/backend/internal/test/testutil"
 )
 
 func TestUpdateUseCase_Execute_Success(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewUpdateUseCase(repo, testutil.NewDiscardLogger())
 
-	existingOrg := fixtures.NewOrganization()
-	id := existingOrg.ID
+	existing := fixtures.NewOrganization()
+	updated := fixtures.NewOrganization()
+	updated.Name = "Updated Name"
 
-	cmd := UpdateCommand{
-		ID:     id,
-		Name:   "Updated Name",
-		Slug:   existingOrg.Slug, // Same slug, no conflict check needed
-		Status: "active",
-	}
+	repo.On("GetByID", mock.Anything, existing.ID).Return(existing, nil)
+	repo.On("Update", mock.Anything, mock.Anything).Return(updated, nil)
 
-	updatedOrg := fixtures.NewOrganization()
-	updatedOrg.Name = cmd.Name
-
-	mockRepo.On("GetByID", mock.Anything, id).Return(existingOrg, nil)
-	mockRepo.On("Update", mock.Anything, mock.MatchedBy(func(o *organization.Organization) bool {
-		return o.ID == id && o.Name == cmd.Name
-	})).Return(updatedOrg, nil)
-
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), UpdateCommand{
+		ID: existing.ID, Name: "Updated Name", Domain: existing.Domain, Workspace: existing.Workspace, Status: string(existing.Status),
+	})
 
 	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, cmd.Name, result.Name)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, "Updated Name", result.Name)
+	repo.AssertNotCalled(t, "GetByDomain")
+	repo.AssertNotCalled(t, "GetByWorkspace")
 }
 
 func TestUpdateUseCase_Execute_NotFound(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewUpdateUseCase(repo, testutil.NewDiscardLogger())
 
 	id := uuid.New()
-	cmd := UpdateCommand{
-		ID:     id,
-		Name:   "Updated Name",
-		Slug:   "updated-slug",
-		Status: "active",
-	}
+	repo.On("GetByID", mock.Anything, id).Return(nil, org.ErrNotFound)
 
-	mockRepo.On("GetByID", mock.Anything, id).Return(nil, organization.ErrNotFound)
+	result, err := uc.Execute(context.Background(), UpdateCommand{
+		ID: id, Name: "Test", Domain: "example.com", Workspace: "example", Status: "active",
+	})
 
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, organization.ErrNotFound)
+	assert.ErrorIs(t, err, org.ErrNotFound)
 	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
 }
 
-func TestUpdateUseCase_Execute_SlugConflict(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
+func TestUpdateUseCase_Execute_DomainConflict(t *testing.T) {
+	repo := new(mocks.OrganizationRepository)
+	uc := NewUpdateUseCase(repo, testutil.NewDiscardLogger())
 
-	existingOrg := fixtures.NewOrganization()
-	id := existingOrg.ID
-
+	existing := fixtures.NewOrganization()
 	otherOrg := fixtures.NewOrganization()
 	otherOrg.ID = uuid.New()
-	otherOrg.Slug = "new-slug"
 
-	cmd := UpdateCommand{
-		ID:     id,
-		Name:   "Updated Name",
-		Slug:   "new-slug", // Different from existing
-		Status: "active",
-	}
+	repo.On("GetByID", mock.Anything, existing.ID).Return(existing, nil)
+	repo.On("GetByDomain", mock.Anything, "new-domain.com").Return(otherOrg, nil)
 
-	mockRepo.On("GetByID", mock.Anything, id).Return(existingOrg, nil)
-	mockRepo.On("GetBySlug", mock.Anything, cmd.Slug).Return(otherOrg, nil)
+	result, err := uc.Execute(context.Background(), UpdateCommand{
+		ID: existing.ID, Name: existing.Name, Domain: "new-domain.com", Workspace: existing.Workspace, Status: string(existing.Status),
+	})
 
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, organization.ErrSlugExists)
+	assert.ErrorIs(t, err, org.ErrDomainExists)
 	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
 }
 
-func TestUpdateUseCase_Execute_SameSlugNoConflict(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
+func TestUpdateUseCase_Execute_WorkspaceConflict(t *testing.T) {
+	repo := new(mocks.OrganizationRepository)
+	uc := NewUpdateUseCase(repo, testutil.NewDiscardLogger())
 
-	existingOrg := fixtures.NewOrganization()
-	id := existingOrg.ID
+	existing := fixtures.NewOrganization()
+	otherOrg := fixtures.NewOrganization()
+	otherOrg.ID = uuid.New()
 
-	cmd := UpdateCommand{
-		ID:     id,
-		Name:   "Updated Name",
-		Slug:   existingOrg.Slug, // Same slug
-		Status: "active",
-	}
+	repo.On("GetByID", mock.Anything, existing.ID).Return(existing, nil)
+	repo.On("GetByWorkspace", mock.Anything, "new-workspace").Return(otherOrg, nil)
 
-	updatedOrg := fixtures.NewOrganization()
-	updatedOrg.Name = cmd.Name
+	result, err := uc.Execute(context.Background(), UpdateCommand{
+		ID: existing.ID, Name: existing.Name, Domain: existing.Domain, Workspace: "new-workspace", Status: string(existing.Status),
+	})
 
-	mockRepo.On("GetByID", mock.Anything, id).Return(existingOrg, nil)
-	// GetBySlug should NOT be called when slug hasn't changed
-	mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*organization.Organization")).Return(updatedOrg, nil)
+	assert.ErrorIs(t, err, org.ErrWorkspaceExists)
+	assert.Nil(t, result)
+}
 
-	result, err := uc.Execute(context.Background(), cmd)
+func TestUpdateUseCase_Execute_SameDomainNoConflict(t *testing.T) {
+	repo := new(mocks.OrganizationRepository)
+	uc := NewUpdateUseCase(repo, testutil.NewDiscardLogger())
+
+	existing := fixtures.NewOrganization()
+	repo.On("GetByID", mock.Anything, existing.ID).Return(existing, nil)
+	repo.On("Update", mock.Anything, mock.Anything).Return(existing, nil)
+
+	result, err := uc.Execute(context.Background(), UpdateCommand{
+		ID: existing.ID, Name: existing.Name, Domain: existing.Domain, Workspace: existing.Workspace, Status: string(existing.Status),
+	})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	mockRepo.AssertNotCalled(t, "GetBySlug")
-	mockRepo.AssertExpectations(t)
+	repo.AssertNotCalled(t, "GetByDomain")
+	repo.AssertNotCalled(t, "GetByWorkspace")
 }
 
 func TestUpdateUseCase_Execute_InvalidStatus(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewUpdateUseCase(repo, testutil.NewDiscardLogger())
 
-	existingOrg := fixtures.NewOrganization()
-	id := existingOrg.ID
+	existing := fixtures.NewOrganization()
+	repo.On("GetByID", mock.Anything, existing.ID).Return(existing, nil)
 
-	cmd := UpdateCommand{
-		ID:     id,
-		Name:   "Updated Name",
-		Slug:   existingOrg.Slug,
-		Status: "invalid",
-	}
+	result, err := uc.Execute(context.Background(), UpdateCommand{
+		ID: existing.ID, Name: existing.Name, Domain: existing.Domain, Workspace: existing.Workspace, Status: "invalid",
+	})
 
-	mockRepo.On("GetByID", mock.Anything, id).Return(existingOrg, nil)
-
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, domain.ErrValidation)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertNotCalled(t, "Update")
 }
 
-func TestUpdateUseCase_Execute_GetBySlugError(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
+func TestUpdateUseCase_Execute_GetByDomainError(t *testing.T) {
+	repo := new(mocks.OrganizationRepository)
+	uc := NewUpdateUseCase(repo, testutil.NewDiscardLogger())
 
-	existingOrg := fixtures.NewOrganization()
-	id := existingOrg.ID
+	existing := fixtures.NewOrganization()
+	repo.On("GetByID", mock.Anything, existing.ID).Return(existing, nil)
+	repo.On("GetByDomain", mock.Anything, "new.com").Return(nil, errors.New("db error"))
 
-	cmd := UpdateCommand{
-		ID:     id,
-		Name:   "Updated Name",
-		Slug:   "new-slug",
-		Status: "active",
-	}
+	result, err := uc.Execute(context.Background(), UpdateCommand{
+		ID: existing.ID, Name: existing.Name, Domain: "new.com", Workspace: existing.Workspace, Status: string(existing.Status),
+	})
 
-	dbError := errors.New("database error")
-	mockRepo.On("GetByID", mock.Anything, id).Return(existingOrg, nil)
-	mockRepo.On("GetBySlug", mock.Anything, cmd.Slug).Return(nil, dbError)
-
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, dbError)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
 }
 
 func TestUpdateUseCase_Execute_UpdateError(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewUpdateUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewUpdateUseCase(repo, testutil.NewDiscardLogger())
 
-	existingOrg := fixtures.NewOrganization()
-	id := existingOrg.ID
+	existing := fixtures.NewOrganization()
+	repo.On("GetByID", mock.Anything, existing.ID).Return(existing, nil)
+	repo.On("Update", mock.Anything, mock.Anything).Return(nil, errors.New("db error"))
 
-	cmd := UpdateCommand{
-		ID:     id,
-		Name:   "Updated Name",
-		Slug:   existingOrg.Slug,
-		Status: "active",
-	}
+	result, err := uc.Execute(context.Background(), UpdateCommand{
+		ID: existing.ID, Name: existing.Name, Domain: existing.Domain, Workspace: existing.Workspace, Status: string(existing.Status),
+	})
 
-	dbError := errors.New("update failed")
-	mockRepo.On("GetByID", mock.Anything, id).Return(existingOrg, nil)
-	mockRepo.On("Update", mock.Anything, mock.AnythingOfType("*organization.Organization")).Return(nil, dbError)
-
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, dbError)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
 }

@@ -3,9 +3,10 @@ package mocks
 import (
 	"context"
 
-	"github.com/dsbraz/bud2/backend/internal/domain/organization"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/dsbraz/bud2/backend/internal/domain/organization"
 )
 
 type OrganizationRepository struct {
@@ -28,8 +29,16 @@ func (m *OrganizationRepository) GetByID(ctx context.Context, id uuid.UUID) (*or
 	return args.Get(0).(*organization.Organization), args.Error(1)
 }
 
-func (m *OrganizationRepository) GetBySlug(ctx context.Context, slug string) (*organization.Organization, error) {
-	args := m.Called(ctx, slug)
+func (m *OrganizationRepository) GetByDomain(ctx context.Context, domain string) (*organization.Organization, error) {
+	args := m.Called(ctx, domain)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*organization.Organization), args.Error(1)
+}
+
+func (m *OrganizationRepository) GetByWorkspace(ctx context.Context, workspace string) (*organization.Organization, error) {
+	args := m.Called(ctx, workspace)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

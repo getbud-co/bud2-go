@@ -6,67 +6,83 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
-	"github.com/dsbraz/bud2/backend/internal/infra/auth"
 	"github.com/google/uuid"
+
+	"github.com/dsbraz/bud2/backend/internal/domain"
+	domainauth "github.com/dsbraz/bud2/backend/internal/domain/auth"
+	"github.com/dsbraz/bud2/backend/internal/domain/membership"
+	"github.com/dsbraz/bud2/backend/internal/domain/organization"
+	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
 )
 
 type CreateCommand struct {
-	TenantID domain.TenantID
-	Name     string
-	Email    string
-	Password string
-	Role     string
+	OrganizationID domain.TenantID
+	Name           string
+	Email          string
+	Password       string
+	Role           string
 }
 
 type CreateUseCase struct {
-	repo   usr.Repository
-	logger *slog.Logger
+	users          usr.Repository
+	memberships    membership.Repository
+	organizations  organization.Repository
+	passwordHasher domainauth.PasswordHasher
+	logger         *slog.Logger
 }
 
-func NewCreateUseCase(repo usr.Repository, logger *slog.Logger) *CreateUseCase {
-	return &CreateUseCase{repo: repo, logger: logger}
+func NewCreateUseCase(users usr.Repository, memberships membership.Repository, organizations organization.Repository, passwordHasher domainauth.PasswordHasher, logger *slog.Logger) *CreateUseCase {
+	return &CreateUseCase{users: users, memberships: memberships, organizations: organizations, passwordHasher: passwordHasher, logger: logger}
 }
 
-func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*usr.User, error) {
-	uc.logger.Debug("creating user", "email", cmd.Email, "tenant_id", cmd.TenantID)
+func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*Member, error) {
+	role := membership.Role(cmd.Role)
+	if !role.IsValid() {
+		return nil, domain.ErrValidation
+	}
 
-	passwordHash, err := auth.HashPassword(cmd.Password)
+	existingUser, err := uc.users.GetByEmail(ctx, cmd.Email)
+	if err != nil && !errors.Is(err, usr.ErrNotFound) {
+		return nil, err
+	}
+
+	targetUser := existingUser
+	if errors.Is(err, usr.ErrNotFound) {
+		if _, orgErr := uc.organizations.GetByDomain(ctx, emailDomain(cmd.Email)); orgErr != nil {
+			return nil, fmt.Errorf("native organization not found for email domain: %w", orgErr)
+		}
+		passwordHash, hashErr := uc.passwordHasher.Hash(cmd.Password)
+		if hashErr != nil {
+			return nil, fmt.Errorf("invalid password: %w", hashErr)
+		}
+		targetUser, err = uc.users.Create(ctx, &usr.User{
+			ID:            uuid.New(),
+			Name:          cmd.Name,
+			Email:         cmd.Email,
+			PasswordHash:  passwordHash,
+			Status:        usr.StatusActive,
+			IsSystemAdmin: false,
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if _, err := uc.memberships.GetByOrganizationAndUser(ctx, cmd.OrganizationID.UUID(), targetUser.ID); err == nil {
+		return nil, membership.ErrAlreadyExists
+	} else if !errors.Is(err, membership.ErrNotFound) {
+		return nil, err
+	}
+
+	createdMembership, err := uc.memberships.Create(ctx, &membership.Membership{
+		OrganizationID: cmd.OrganizationID.UUID(),
+		UserID:         targetUser.ID,
+		Role:           role,
+		Status:         membership.StatusActive,
+	})
 	if err != nil {
-		uc.logger.Error("failed to hash password", "error", err)
-		return nil, fmt.Errorf("%w: invalid password", domain.ErrValidation)
-	}
-
-	u := &usr.User{
-		ID:           uuid.New(),
-		TenantID:     cmd.TenantID,
-		Name:         cmd.Name,
-		Email:        cmd.Email,
-		PasswordHash: passwordHash,
-		Role:         usr.Role(cmd.Role),
-		Status:       usr.StatusActive,
-	}
-
-	if err := u.Validate(); err != nil {
-		uc.logger.Warn("user validation failed", "error", err, "email", cmd.Email)
 		return nil, err
 	}
 
-	if _, err := uc.repo.GetByEmail(ctx, cmd.TenantID, cmd.Email); err == nil {
-		uc.logger.Warn("email conflict", "email", cmd.Email, "tenant_id", cmd.TenantID)
-		return nil, usr.ErrEmailExists
-	} else if !errors.Is(err, usr.ErrNotFound) {
-		uc.logger.Error("failed to check email uniqueness", "error", err, "email", cmd.Email)
-		return nil, err
-	}
-
-	result, err := uc.repo.Create(ctx, u)
-	if err != nil {
-		uc.logger.Error("failed to create user", "error", err, "email", cmd.Email)
-		return nil, err
-	}
-
-	uc.logger.Info("user created", "user_id", result.ID, "email", result.Email, "tenant_id", result.TenantID)
-	return result, nil
+	return &Member{User: *targetUser, OrganizationID: createdMembership.OrganizationID, MembershipRole: createdMembership.Role, MembershipStatus: createdMembership.Status}, nil
 }

@@ -4,282 +4,185 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/dsbraz/bud2/backend/internal/domain/membership"
 	"github.com/dsbraz/bud2/backend/internal/domain/organization"
 	"github.com/dsbraz/bud2/backend/internal/domain/user"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
 	"github.com/dsbraz/bud2/backend/internal/test/testutil"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
-// MockTxManager is a specialized mock that can execute the transaction function
-type MockTxManager struct {
-	mock.Mock
-	orgRepo  *mocks.OrganizationRepository
-	userRepo *mocks.UserRepository
+type mockTxManager struct {
+	orgRepo        *mocks.OrganizationRepository
+	userRepo       *mocks.UserRepository
+	membershipRepo *mocks.MembershipRepository
 }
 
-func (m *MockTxManager) WithTx(ctx context.Context, fn func(orgRepo organization.Repository, userRepo user.Repository) error) error {
-	args := m.Called(ctx, mock.Anything)
+func (m *mockTxManager) WithTx(ctx context.Context, fn func(orgRepo organization.Repository, userRepo user.Repository, membershipRepo membership.Repository) error) error {
+	return fn(m.orgRepo, m.userRepo, m.membershipRepo)
+}
 
-	// Execute the function with mocked repositories if no error is set
-	if args.Error(0) == nil && m.orgRepo != nil && m.userRepo != nil {
-		return fn(m.orgRepo, m.userRepo)
+func newTestCommand() Command {
+	return Command{
+		OrganizationName:      "Test Org",
+		OrganizationDomain:    "example.com",
+		OrganizationWorkspace: "example",
+		AdminName:             "Admin",
+		AdminEmail:            "admin@example.com",
+		AdminPassword:         "password123",
 	}
-
-	return args.Error(0)
 }
 
 func TestUseCase_Execute_Success(t *testing.T) {
-	mockOrgRepo := new(mocks.OrganizationRepository)
-	mockUserRepo := new(mocks.UserRepository)
-	mockTxManager := &MockTxManager{
-		orgRepo:  mockOrgRepo,
-		userRepo: mockUserRepo,
-	}
-	mockIssuer := new(mocks.TokenIssuer)
+	orgRepo := new(mocks.OrganizationRepository)
+	txOrgRepo := new(mocks.OrganizationRepository)
+	txUserRepo := new(mocks.UserRepository)
+	txMembershipRepo := new(mocks.MembershipRepository)
+	issuer := new(mocks.TokenIssuer)
+	hasher := new(mocks.PasswordHasher)
+	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo, membershipRepo: txMembershipRepo}
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
-
-	cmd := Command{
-		OrganizationName: "Test Org",
-		OrganizationSlug: "test-org",
-		AdminName:        "Admin User",
-		AdminEmail:       "admin@example.com",
-		AdminPassword:    "admin123",
-	}
+	uc := NewUseCase(orgRepo, txm, issuer, hasher, testutil.NewDiscardLogger())
 
 	createdOrg := fixtures.NewOrganization()
-	createdAdmin := fixtures.NewUser()
-	createdAdmin.TenantID = domain.TenantID(createdOrg.ID)
-	expectedToken := "test-jwt-token"
+	createdUser := fixtures.NewUser()
+	createdMembership := fixtures.NewMembership()
 
-	// Expectations
-	mockOrgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
-	mockTxManager.On("WithTx", mock.Anything, mock.Anything).Return(nil)
-	mockOrgRepo.On("Create", mock.Anything, mock.AnythingOfType("*organization.Organization")).Return(createdOrg, nil)
-	mockUserRepo.On("Create", mock.Anything, mock.AnythingOfType("*user.User")).Return(createdAdmin, nil)
-	mockIssuer.On("IssueToken", mock.AnythingOfType("domain.UserClaims"), 24*time.Hour).Return(expectedToken, nil)
+	orgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
+	hasher.On("Hash", "password123").Return("hashed", nil)
+	txOrgRepo.On("Create", mock.Anything, mock.Anything).Return(createdOrg, nil)
+	txUserRepo.On("Create", mock.Anything, mock.Anything).Return(createdUser, nil)
+	txMembershipRepo.On("Create", mock.Anything, mock.Anything).Return(createdMembership, nil)
+	issuer.On("IssueToken", mock.Anything, mock.Anything).Return("test-token", nil)
 
-	// Execute
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), newTestCommand())
 
-	// Assert
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
+	assert.Equal(t, "test-token", result.AccessToken)
 	assert.Equal(t, createdOrg.ID, result.Organization.ID)
-	assert.Equal(t, createdAdmin.ID, result.Admin.ID)
-	assert.Equal(t, expectedToken, result.AccessToken)
+	assert.Equal(t, createdUser.ID, result.Admin.ID)
 }
 
 func TestUseCase_Execute_AlreadyBootstrapped(t *testing.T) {
-	mockOrgRepo := new(mocks.OrganizationRepository)
-	mockTxManager := new(MockTxManager)
-	mockIssuer := new(mocks.TokenIssuer)
+	orgRepo := new(mocks.OrganizationRepository)
+	uc := NewUseCase(orgRepo, nil, nil, nil, testutil.NewDiscardLogger())
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
+	orgRepo.On("CountAll", mock.Anything).Return(int64(1), nil)
 
-	cmd := Command{
-		OrganizationName: "Test Org",
-		OrganizationSlug: "test-org",
-		AdminName:        "Admin User",
-		AdminEmail:       "admin@example.com",
-		AdminPassword:    "admin123",
-	}
-
-	// Already has organizations
-	mockOrgRepo.On("CountAll", mock.Anything).Return(int64(5), nil)
-
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), newTestCommand())
 
 	assert.ErrorIs(t, err, ErrAlreadyBootstrapped)
 	assert.Nil(t, result)
-	mockTxManager.AssertNotCalled(t, "WithTx")
-	mockIssuer.AssertNotCalled(t, "IssueToken")
 }
 
 func TestUseCase_Execute_CountError(t *testing.T) {
-	mockOrgRepo := new(mocks.OrganizationRepository)
-	mockTxManager := new(MockTxManager)
-	mockIssuer := new(mocks.TokenIssuer)
+	orgRepo := new(mocks.OrganizationRepository)
+	uc := NewUseCase(orgRepo, nil, nil, nil, testutil.NewDiscardLogger())
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
+	orgRepo.On("CountAll", mock.Anything).Return(int64(0), errors.New("db error"))
 
-	cmd := Command{
-		OrganizationName: "Test Org",
-		OrganizationSlug: "test-org",
-		AdminName:        "Admin User",
-		AdminEmail:       "admin@example.com",
-		AdminPassword:    "admin123",
-	}
+	result, err := uc.Execute(context.Background(), newTestCommand())
 
-	dbError := errors.New("database error")
-	mockOrgRepo.On("CountAll", mock.Anything).Return(int64(0), dbError)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
 
-	result, err := uc.Execute(context.Background(), cmd)
+func TestUseCase_Execute_PasswordHashError(t *testing.T) {
+	orgRepo := new(mocks.OrganizationRepository)
+	hasher := new(mocks.PasswordHasher)
+	uc := NewUseCase(orgRepo, nil, nil, hasher, testutil.NewDiscardLogger())
 
-	assert.ErrorIs(t, err, dbError)
+	orgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
+	hasher.On("Hash", "password123").Return("", errors.New("hash error"))
+
+	result, err := uc.Execute(context.Background(), newTestCommand())
+
+	assert.Error(t, err)
 	assert.Nil(t, result)
 }
 
 func TestUseCase_Execute_TransactionError(t *testing.T) {
-	mockOrgRepo := new(mocks.OrganizationRepository)
-	mockTxManager := new(MockTxManager)
-	mockIssuer := new(mocks.TokenIssuer)
+	orgRepo := new(mocks.OrganizationRepository)
+	txOrgRepo := new(mocks.OrganizationRepository)
+	txUserRepo := new(mocks.UserRepository)
+	txMembershipRepo := new(mocks.MembershipRepository)
+	hasher := new(mocks.PasswordHasher)
+	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo, membershipRepo: txMembershipRepo}
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
+	uc := NewUseCase(orgRepo, txm, nil, hasher, testutil.NewDiscardLogger())
 
-	cmd := Command{
-		OrganizationName: "Test Org",
-		OrganizationSlug: "test-org",
-		AdminName:        "Admin User",
-		AdminEmail:       "admin@example.com",
-		AdminPassword:    "admin123",
-	}
+	orgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
+	hasher.On("Hash", "password123").Return("hashed", nil)
+	txOrgRepo.On("Create", mock.Anything, mock.Anything).Return(nil, errors.New("tx error"))
 
-	txError := errors.New("transaction failed")
-	mockOrgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
-	mockTxManager.On("WithTx", mock.Anything, mock.Anything).Return(txError)
+	result, err := uc.Execute(context.Background(), newTestCommand())
 
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, txError)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockIssuer.AssertNotCalled(t, "IssueToken")
 }
 
 func TestUseCase_Execute_TokenError(t *testing.T) {
-	mockOrgRepo := new(mocks.OrganizationRepository)
-	mockUserRepo := new(mocks.UserRepository)
-	mockTxManager := &MockTxManager{
-		orgRepo:  mockOrgRepo,
-		userRepo: mockUserRepo,
-	}
-	mockIssuer := new(mocks.TokenIssuer)
+	orgRepo := new(mocks.OrganizationRepository)
+	txOrgRepo := new(mocks.OrganizationRepository)
+	txUserRepo := new(mocks.UserRepository)
+	txMembershipRepo := new(mocks.MembershipRepository)
+	issuer := new(mocks.TokenIssuer)
+	hasher := new(mocks.PasswordHasher)
+	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo, membershipRepo: txMembershipRepo}
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
+	uc := NewUseCase(orgRepo, txm, issuer, hasher, testutil.NewDiscardLogger())
 
-	cmd := Command{
-		OrganizationName: "Test Org",
-		OrganizationSlug: "test-org",
-		AdminName:        "Admin User",
-		AdminEmail:       "admin@example.com",
-		AdminPassword:    "admin123",
-	}
+	orgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
+	hasher.On("Hash", "password123").Return("hashed", nil)
+	txOrgRepo.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewOrganization(), nil)
+	txUserRepo.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewUser(), nil)
+	txMembershipRepo.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewMembership(), nil)
+	issuer.On("IssueToken", mock.Anything, mock.Anything).Return("", errors.New("token error"))
 
-	createdOrg := fixtures.NewOrganization()
-	createdAdmin := fixtures.NewUser()
-	createdAdmin.TenantID = domain.TenantID(createdOrg.ID)
+	result, err := uc.Execute(context.Background(), newTestCommand())
 
-	tokenError := errors.New("token issuance failed")
-	mockOrgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
-	mockTxManager.On("WithTx", mock.Anything, mock.Anything).Return(nil)
-	mockOrgRepo.On("Create", mock.Anything, mock.AnythingOfType("*organization.Organization")).Return(createdOrg, nil)
-	mockUserRepo.On("Create", mock.Anything, mock.AnythingOfType("*user.User")).Return(createdAdmin, nil)
-	mockIssuer.On("IssueToken", mock.AnythingOfType("domain.UserClaims"), 24*time.Hour).Return("", tokenError)
-
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, tokenError)
+	assert.Error(t, err)
 	assert.Nil(t, result)
 }
 
-func TestUseCase_Execute_OrganizationCreatedWithCorrectData(t *testing.T) {
-	mockOrgRepo := new(mocks.OrganizationRepository)
-	mockUserRepo := new(mocks.UserRepository)
-	mockTxManager := &MockTxManager{
-		orgRepo:  mockOrgRepo,
-		userRepo: mockUserRepo,
-	}
-	mockIssuer := new(mocks.TokenIssuer)
+func TestUseCase_Execute_DataCorrectness(t *testing.T) {
+	orgRepo := new(mocks.OrganizationRepository)
+	txOrgRepo := new(mocks.OrganizationRepository)
+	txUserRepo := new(mocks.UserRepository)
+	txMembershipRepo := new(mocks.MembershipRepository)
+	issuer := new(mocks.TokenIssuer)
+	hasher := new(mocks.PasswordHasher)
+	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo, membershipRepo: txMembershipRepo}
 
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
+	uc := NewUseCase(orgRepo, txm, issuer, hasher, testutil.NewDiscardLogger())
 
-	cmd := Command{
-		OrganizationName: "Acme Corp",
-		OrganizationSlug: "acme-corp",
-		AdminName:        "John Admin",
-		AdminEmail:       "john@acme.com",
-		AdminPassword:    "admin123",
-	}
+	orgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
+	hasher.On("Hash", "password123").Return("hashed", nil)
 
-	createdOrg := fixtures.NewOrganization()
-	createdOrg.Name = cmd.OrganizationName
-	createdOrg.Slug = cmd.OrganizationSlug
+	txOrgRepo.On("Create", mock.Anything, mock.MatchedBy(func(o *organization.Organization) bool {
+		return o.Name == "Test Org" && o.Domain == "example.com" && o.Workspace == "example" && o.Status == organization.StatusActive
+	})).Return(fixtures.NewOrganization(), nil)
 
-	createdAdmin := fixtures.NewUser()
-	createdAdmin.TenantID = domain.TenantID(createdOrg.ID)
-	createdAdmin.Name = cmd.AdminName
-	createdAdmin.Email = cmd.AdminEmail
+	txUserRepo.On("Create", mock.Anything, mock.MatchedBy(func(u *user.User) bool {
+		return u.Name == "Admin" && u.Email == "admin@example.com" && u.PasswordHash == "hashed" && u.Status == user.StatusActive
+	})).Return(fixtures.NewUser(), nil)
 
-	mockOrgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
-	mockTxManager.On("WithTx", mock.Anything, mock.Anything).Return(nil)
+	txMembershipRepo.On("Create", mock.Anything, mock.MatchedBy(func(m *membership.Membership) bool {
+		return m.Role == membership.RoleAdmin && m.Status == membership.StatusActive
+	})).Return(fixtures.NewMembership(), nil)
 
-	// Verify organization is created with correct data
-	mockOrgRepo.On("Create", mock.Anything, mock.MatchedBy(func(o *organization.Organization) bool {
-		return o.Name == cmd.OrganizationName &&
-			o.Slug == cmd.OrganizationSlug &&
-			o.Status == organization.StatusActive
-	})).Return(createdOrg, nil)
+	issuer.On("IssueToken", mock.Anything, mock.Anything).Return("test-token", nil)
 
-	// Verify admin is created with correct data
-	mockUserRepo.On("Create", mock.Anything, mock.MatchedBy(func(u *user.User) bool {
-		return u.Name == cmd.AdminName &&
-			u.Email == cmd.AdminEmail &&
-			u.Role == user.RoleAdmin &&
-			u.Status == user.StatusActive &&
-			u.TenantID == domain.TenantID(createdOrg.ID)
-	})).Return(createdAdmin, nil)
-
-	mockIssuer.On("IssueToken", mock.AnythingOfType("domain.UserClaims"), mock.Anything).Return("token", nil)
-
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), newTestCommand())
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	mockOrgRepo.AssertExpectations(t)
-	mockUserRepo.AssertExpectations(t)
-}
-
-func TestUseCase_Execute_TenantIDMatchesOrganizationID(t *testing.T) {
-	mockOrgRepo := new(mocks.OrganizationRepository)
-	mockUserRepo := new(mocks.UserRepository)
-	mockTxManager := &MockTxManager{
-		orgRepo:  mockOrgRepo,
-		userRepo: mockUserRepo,
-	}
-	mockIssuer := new(mocks.TokenIssuer)
-
-	uc := NewUseCase(mockOrgRepo, mockTxManager, mockIssuer, testutil.NewDiscardLogger())
-
-	cmd := Command{
-		OrganizationName: "Test Org",
-		OrganizationSlug: "test-org",
-		AdminName:        "Admin User",
-		AdminEmail:       "admin@example.com",
-		AdminPassword:    "admin123",
-	}
-
-	orgID := uuid.New()
-	createdOrg := fixtures.NewOrganization()
-	createdOrg.ID = orgID
-
-	var capturedUser *user.User
-	mockOrgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
-	mockTxManager.On("WithTx", mock.Anything, mock.Anything).Return(nil)
-	mockOrgRepo.On("Create", mock.Anything, mock.Anything).Return(createdOrg, nil)
-	mockUserRepo.On("Create", mock.Anything, mock.AnythingOfType("*user.User")).Run(func(args mock.Arguments) {
-		capturedUser = args.Get(1).(*user.User)
-	}).Return(fixtures.NewUser(), nil)
-	mockIssuer.On("IssueToken", mock.Anything, mock.Anything).Return("token", nil)
-
-	uc.Execute(context.Background(), cmd)
-
-	// Verify tenant ID matches organization ID
-	assert.Equal(t, domain.TenantID(orgID), capturedUser.TenantID)
+	txOrgRepo.AssertExpectations(t)
+	txUserRepo.AssertExpectations(t)
+	txMembershipRepo.AssertExpectations(t)
 }

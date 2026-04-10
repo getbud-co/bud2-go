@@ -9,9 +9,10 @@ import (
 )
 
 type CreateCommand struct {
-	Name   string
-	Slug   string
-	Status string
+	Name      string
+	Domain    string
+	Workspace string
+	Status    string
 }
 
 type CreateUseCase struct {
@@ -24,7 +25,7 @@ func NewCreateUseCase(repo org.Repository, logger *slog.Logger) *CreateUseCase {
 }
 
 func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*org.Organization, error) {
-	uc.logger.Debug("creating organization", "name", cmd.Name, "slug", cmd.Slug)
+	uc.logger.Debug("creating organization", "name", cmd.Name, "domain", cmd.Domain, "workspace", cmd.Workspace)
 
 	status := org.StatusActive
 	if cmd.Status != "" {
@@ -32,32 +33,43 @@ func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*org.O
 	}
 
 	o := &org.Organization{
-		Name:   cmd.Name,
-		Slug:   cmd.Slug,
-		Status: status,
+		Name:      cmd.Name,
+		Domain:    cmd.Domain,
+		Workspace: cmd.Workspace,
+		Status:    status,
 	}
 
 	if err := o.Validate(); err != nil {
-		uc.logger.Warn("organization validation failed", "error", err, "slug", cmd.Slug)
+		uc.logger.Warn("organization validation failed", "error", err, "domain", cmd.Domain, "workspace", cmd.Workspace)
 		return nil, err
 	}
 
-	_, err := uc.repo.GetBySlug(ctx, cmd.Slug)
+	_, err := uc.repo.GetByDomain(ctx, cmd.Domain)
 	if err == nil {
-		uc.logger.Warn("slug conflict", "slug", cmd.Slug)
-		return nil, org.ErrSlugExists
+		uc.logger.Warn("domain conflict", "domain", cmd.Domain)
+		return nil, org.ErrDomainExists
 	}
 	if !errors.Is(err, org.ErrNotFound) {
-		uc.logger.Error("failed to check slug uniqueness", "error", err, "slug", cmd.Slug)
+		uc.logger.Error("failed to check domain uniqueness", "error", err, "domain", cmd.Domain)
+		return nil, err
+	}
+
+	_, err = uc.repo.GetByWorkspace(ctx, cmd.Workspace)
+	if err == nil {
+		uc.logger.Warn("workspace conflict", "workspace", cmd.Workspace)
+		return nil, org.ErrWorkspaceExists
+	}
+	if !errors.Is(err, org.ErrNotFound) {
+		uc.logger.Error("failed to check workspace uniqueness", "error", err, "workspace", cmd.Workspace)
 		return nil, err
 	}
 
 	result, err := uc.repo.Create(ctx, o)
 	if err != nil {
-		uc.logger.Error("failed to create organization", "error", err, "slug", cmd.Slug)
+		uc.logger.Error("failed to create organization", "error", err, "domain", cmd.Domain, "workspace", cmd.Workspace)
 		return nil, err
 	}
 
-	uc.logger.Info("organization created", "organization_id", result.ID, "slug", result.Slug)
+	uc.logger.Info("organization created", "organization_id", result.ID, "domain", result.Domain, "workspace", result.Workspace)
 	return result, nil
 }

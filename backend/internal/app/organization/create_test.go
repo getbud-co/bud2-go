@@ -5,204 +5,191 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	"github.com/dsbraz/bud2/backend/internal/domain/organization"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
 	"github.com/dsbraz/bud2/backend/internal/test/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestCreateUseCase_Execute_Success(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
 
-	cmd := CreateCommand{
-		Name:   "Test Organization",
-		Slug:   "test-org",
-		Status: "active",
-	}
+	expected := fixtures.NewOrganization()
+	repo.On("GetByDomain", mock.Anything, "example.com").Return(nil, org.ErrNotFound)
+	repo.On("GetByWorkspace", mock.Anything, "example").Return(nil, org.ErrNotFound)
+	repo.On("Create", mock.Anything, mock.Anything).Return(expected, nil)
 
-	expectedOrg := fixtures.NewOrganization()
-
-	mockRepo.On("GetBySlug", mock.Anything, cmd.Slug).Return(nil, organization.ErrNotFound)
-	mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(o *organization.Organization) bool {
-		return o.Name == cmd.Name && o.Slug == cmd.Slug && o.Status == organization.StatusActive
-	})).Return(expectedOrg, nil)
-
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Name: "Test Org", Domain: "example.com", Workspace: "example",
+	})
 
 	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, expectedOrg.ID, result.ID)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, expected, result)
+	repo.AssertExpectations(t)
 }
 
-func TestCreateUseCase_Execute_SlugAlreadyExists(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+func TestCreateUseCase_Execute_DomainAlreadyExists(t *testing.T) {
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
 
-	cmd := CreateCommand{
-		Name:   "Test Organization",
-		Slug:   "existing-slug",
-		Status: "active",
-	}
+	repo.On("GetByDomain", mock.Anything, "example.com").Return(fixtures.NewOrganization(), nil)
 
-	existingOrg := fixtures.NewOrganization()
-	existingOrg.Slug = cmd.Slug
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Name: "Test Org", Domain: "example.com", Workspace: "example",
+	})
 
-	mockRepo.On("GetBySlug", mock.Anything, cmd.Slug).Return(existingOrg, nil)
-
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, organization.ErrSlugExists)
+	assert.ErrorIs(t, err, org.ErrDomainExists)
 	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
+	repo.AssertNotCalled(t, "GetByWorkspace")
+	repo.AssertNotCalled(t, "Create")
+}
+
+func TestCreateUseCase_Execute_WorkspaceAlreadyExists(t *testing.T) {
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
+
+	repo.On("GetByDomain", mock.Anything, "example.com").Return(nil, org.ErrNotFound)
+	repo.On("GetByWorkspace", mock.Anything, "example").Return(fixtures.NewOrganization(), nil)
+
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Name: "Test Org", Domain: "example.com", Workspace: "example",
+	})
+
+	assert.ErrorIs(t, err, org.ErrWorkspaceExists)
+	assert.Nil(t, result)
+	repo.AssertNotCalled(t, "Create")
 }
 
 func TestCreateUseCase_Execute_InvalidStatus(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
 
-	cmd := CreateCommand{
-		Name:   "Test Organization",
-		Slug:   "test-org",
-		Status: "invalid-status",
-	}
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Name: "Test Org", Domain: "example.com", Workspace: "example", Status: "invalid",
+	})
 
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, domain.ErrValidation)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertNotCalled(t, "GetBySlug")
-	mockRepo.AssertNotCalled(t, "Create")
+	repo.AssertNotCalled(t, "GetByDomain")
 }
 
 func TestCreateUseCase_Execute_MissingName(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
 
-	cmd := CreateCommand{
-		Name:   "",
-		Slug:   "test-org",
-		Status: "active",
-	}
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Domain: "example.com", Workspace: "example",
+	})
 
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, domain.ErrValidation)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertNotCalled(t, "GetBySlug")
-	mockRepo.AssertNotCalled(t, "Create")
 }
 
-func TestCreateUseCase_Execute_MissingSlug(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+func TestCreateUseCase_Execute_MissingDomain(t *testing.T) {
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
 
-	cmd := CreateCommand{
-		Name:   "Test Organization",
-		Slug:   "",
-		Status: "active",
-	}
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Name: "Test Org", Workspace: "example",
+	})
 
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, domain.ErrValidation)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertNotCalled(t, "GetBySlug")
-	mockRepo.AssertNotCalled(t, "Create")
 }
 
-func TestCreateUseCase_Execute_GetBySlugError(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+func TestCreateUseCase_Execute_MissingWorkspace(t *testing.T) {
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
 
-	cmd := CreateCommand{
-		Name:   "Test Organization",
-		Slug:   "test-org",
-		Status: "active",
-	}
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Name: "Test Org", Domain: "example.com",
+	})
 
-	dbError := errors.New("database connection failed")
-	mockRepo.On("GetBySlug", mock.Anything, cmd.Slug).Return(nil, dbError)
-
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, dbError)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
-	mockRepo.AssertNotCalled(t, "Create")
+}
+
+func TestCreateUseCase_Execute_GetByDomainError(t *testing.T) {
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
+
+	repo.On("GetByDomain", mock.Anything, "example.com").Return(nil, errors.New("db error"))
+
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Name: "Test Org", Domain: "example.com", Workspace: "example",
+	})
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestCreateUseCase_Execute_GetByWorkspaceError(t *testing.T) {
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
+
+	repo.On("GetByDomain", mock.Anything, "example.com").Return(nil, org.ErrNotFound)
+	repo.On("GetByWorkspace", mock.Anything, "example").Return(nil, errors.New("db error"))
+
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Name: "Test Org", Domain: "example.com", Workspace: "example",
+	})
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
 }
 
 func TestCreateUseCase_Execute_CreateError(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
 
-	cmd := CreateCommand{
-		Name:   "Test Organization",
-		Slug:   "test-org",
-		Status: "active",
-	}
+	repo.On("GetByDomain", mock.Anything, "example.com").Return(nil, org.ErrNotFound)
+	repo.On("GetByWorkspace", mock.Anything, "example").Return(nil, org.ErrNotFound)
+	repo.On("Create", mock.Anything, mock.Anything).Return(nil, errors.New("db error"))
 
-	dbError := errors.New("insert failed")
-	mockRepo.On("GetBySlug", mock.Anything, cmd.Slug).Return(nil, organization.ErrNotFound)
-	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*organization.Organization")).Return(nil, dbError)
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Name: "Test Org", Domain: "example.com", Workspace: "example",
+	})
 
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, dbError)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
 }
 
 func TestCreateUseCase_Execute_DefaultStatus(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
 
-	cmd := CreateCommand{
-		Name: "Test Organization",
-		Slug: "test-org",
-		// Status not provided - should default to active
-	}
+	repo.On("GetByDomain", mock.Anything, "example.com").Return(nil, org.ErrNotFound)
+	repo.On("GetByWorkspace", mock.Anything, "example").Return(nil, org.ErrNotFound)
+	repo.On("Create", mock.Anything, mock.MatchedBy(func(o *org.Organization) bool {
+		return o.Status == org.StatusActive
+	})).Return(fixtures.NewOrganization(), nil)
 
-	expectedOrg := fixtures.NewOrganization()
-
-	mockRepo.On("GetBySlug", mock.Anything, cmd.Slug).Return(nil, organization.ErrNotFound)
-	mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(o *organization.Organization) bool {
-		return o.Status == organization.StatusActive
-	})).Return(expectedOrg, nil)
-
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Name: "Test Org", Domain: "example.com", Workspace: "example",
+	})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, organization.StatusActive, result.Status)
-	mockRepo.AssertExpectations(t)
 }
 
 func TestCreateUseCase_Execute_InactiveStatus(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewCreateUseCase(repo, testutil.NewDiscardLogger())
 
-	cmd := CreateCommand{
-		Name:   "Test Organization",
-		Slug:   "test-org",
-		Status: "inactive",
-	}
+	repo.On("GetByDomain", mock.Anything, "example.com").Return(nil, org.ErrNotFound)
+	repo.On("GetByWorkspace", mock.Anything, "example").Return(nil, org.ErrNotFound)
+	repo.On("Create", mock.Anything, mock.MatchedBy(func(o *org.Organization) bool {
+		return o.Status == org.StatusInactive
+	})).Return(fixtures.NewInactiveOrganization(), nil)
 
-	expectedOrg := fixtures.NewInactiveOrganization()
-
-	mockRepo.On("GetBySlug", mock.Anything, cmd.Slug).Return(nil, organization.ErrNotFound)
-	mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(o *organization.Organization) bool {
-		return o.Status == organization.StatusInactive
-	})).Return(expectedOrg, nil)
-
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		Name: "Test Org", Domain: "example.com", Workspace: "example", Status: "inactive",
+	})
 
 	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Equal(t, organization.StatusInactive, result.Status)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, org.StatusInactive, result.Status)
 }

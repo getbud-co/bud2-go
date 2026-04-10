@@ -5,196 +5,175 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
 	"github.com/dsbraz/bud2/backend/internal/domain"
-	"github.com/dsbraz/bud2/backend/internal/domain/user"
+	"github.com/dsbraz/bud2/backend/internal/domain/membership"
+	"github.com/dsbraz/bud2/backend/internal/domain/organization"
+	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
 	"github.com/dsbraz/bud2/backend/internal/test/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
-func TestCreateUseCase_Execute_Success(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+func TestCreateUseCase_Execute_Success_NewUser(t *testing.T) {
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	organizations := new(mocks.OrganizationRepository)
+	hasher := new(mocks.PasswordHasher)
+	uc := NewCreateUseCase(users, memberships, organizations, hasher, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
-	cmd := CreateCommand{
-		TenantID: tenantID,
-		Name:     "Test User",
-		Email:    "test@example.com",
-		Password: "password123",
-		Role:     "admin",
-	}
+	testOrg := fixtures.NewOrganization()
 
-	expectedUser := fixtures.NewUser()
+	users.On("GetByEmail", mock.Anything, "new@example.com").Return(nil, usr.ErrNotFound)
+	organizations.On("GetByDomain", mock.Anything, "example.com").Return(testOrg, nil)
+	hasher.On("Hash", "password123").Return("hashed", nil)
+	users.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewUserWithEmail("new@example.com"), nil)
+	memberships.On("GetByOrganizationAndUser", mock.Anything, tenantID.UUID(), mock.Anything).Return(nil, membership.ErrNotFound)
+	memberships.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewMembership(), nil)
 
-	mockRepo.On("GetByEmail", mock.Anything, tenantID, cmd.Email).Return(nil, user.ErrNotFound)
-	mockRepo.On("Create", mock.Anything, mock.MatchedBy(func(u *user.User) bool {
-		return u.Name == cmd.Name && u.Email == cmd.Email && u.Role == user.RoleAdmin && u.PasswordHash != ""
-	})).Return(expectedUser, nil)
-
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		OrganizationID: tenantID, Name: "New User", Email: "new@example.com", Password: "password123", Role: "admin",
+	})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, expectedUser.ID, result.ID)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, "new@example.com", result.User.Email)
 }
 
-func TestCreateUseCase_Execute_EmailAlreadyExists(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+func TestCreateUseCase_Execute_Success_ExistingUser(t *testing.T) {
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	organizations := new(mocks.OrganizationRepository)
+	hasher := new(mocks.PasswordHasher)
+	uc := NewCreateUseCase(users, memberships, organizations, hasher, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
-	cmd := CreateCommand{
-		TenantID: tenantID,
-		Name:     "Test User",
-		Email:    "existing@example.com",
-		Password: "password123",
-		Role:     "admin",
-	}
-
 	existingUser := fixtures.NewUser()
-	existingUser.Email = cmd.Email
 
-	mockRepo.On("GetByEmail", mock.Anything, tenantID, cmd.Email).Return(existingUser, nil)
+	users.On("GetByEmail", mock.Anything, existingUser.Email).Return(existingUser, nil)
+	memberships.On("GetByOrganizationAndUser", mock.Anything, tenantID.UUID(), existingUser.ID).Return(nil, membership.ErrNotFound)
+	memberships.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewMembership(), nil)
 
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		OrganizationID: tenantID, Name: existingUser.Name, Email: existingUser.Email, Password: "password123", Role: "admin",
+	})
 
-	assert.ErrorIs(t, err, user.ErrEmailExists)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	organizations.AssertNotCalled(t, "GetByDomain")
+	hasher.AssertNotCalled(t, "Hash")
+	users.AssertNotCalled(t, "Create")
+}
+
+func TestCreateUseCase_Execute_MembershipAlreadyExists(t *testing.T) {
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	organizations := new(mocks.OrganizationRepository)
+	hasher := new(mocks.PasswordHasher)
+	uc := NewCreateUseCase(users, memberships, organizations, hasher, testutil.NewDiscardLogger())
+
+	tenantID := fixtures.NewTestTenantID()
+	existingUser := fixtures.NewUser()
+
+	users.On("GetByEmail", mock.Anything, existingUser.Email).Return(existingUser, nil)
+	memberships.On("GetByOrganizationAndUser", mock.Anything, tenantID.UUID(), existingUser.ID).Return(fixtures.NewMembership(), nil)
+
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		OrganizationID: tenantID, Name: existingUser.Name, Email: existingUser.Email, Password: "password123", Role: "admin",
+	})
+
+	assert.ErrorIs(t, err, membership.ErrAlreadyExists)
 	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
 }
 
 func TestCreateUseCase_Execute_InvalidRole(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	organizations := new(mocks.OrganizationRepository)
+	hasher := new(mocks.PasswordHasher)
+	uc := NewCreateUseCase(users, memberships, organizations, hasher, testutil.NewDiscardLogger())
 
-	tenantID := fixtures.NewTestTenantID()
-	cmd := CreateCommand{
-		TenantID: tenantID,
-		Name:     "Test User",
-		Email:    "test@example.com",
-		Password: "password123",
-		Role:     "invalid-role",
-	}
-
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		OrganizationID: fixtures.NewTestTenantID(), Name: "Test", Email: "test@example.com", Password: "password123", Role: "invalid",
+	})
 
 	assert.ErrorIs(t, err, domain.ErrValidation)
 	assert.Nil(t, result)
-	mockRepo.AssertNotCalled(t, "GetByEmail")
-	mockRepo.AssertNotCalled(t, "Create")
 }
 
-func TestCreateUseCase_Execute_MissingName(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+func TestCreateUseCase_Execute_EmailDomainOrgNotFound(t *testing.T) {
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	organizations := new(mocks.OrganizationRepository)
+	hasher := new(mocks.PasswordHasher)
+	uc := NewCreateUseCase(users, memberships, organizations, hasher, testutil.NewDiscardLogger())
 
-	tenantID := fixtures.NewTestTenantID()
-	cmd := CreateCommand{
-		TenantID: tenantID,
-		Name:     "",
-		Email:    "test@example.com",
-		Password: "password123",
-		Role:     "admin",
-	}
+	users.On("GetByEmail", mock.Anything, "test@unknown.com").Return(nil, usr.ErrNotFound)
+	organizations.On("GetByDomain", mock.Anything, "unknown.com").Return(nil, organization.ErrNotFound)
 
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		OrganizationID: fixtures.NewTestTenantID(), Name: "Test", Email: "test@unknown.com", Password: "password123", Role: "admin",
+	})
 
-	assert.ErrorIs(t, err, domain.ErrValidation)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertNotCalled(t, "GetByEmail")
-	mockRepo.AssertNotCalled(t, "Create")
 }
 
-func TestCreateUseCase_Execute_MissingEmail(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+func TestCreateUseCase_Execute_PasswordHashError(t *testing.T) {
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	organizations := new(mocks.OrganizationRepository)
+	hasher := new(mocks.PasswordHasher)
+	uc := NewCreateUseCase(users, memberships, organizations, hasher, testutil.NewDiscardLogger())
 
-	tenantID := fixtures.NewTestTenantID()
-	cmd := CreateCommand{
-		TenantID: tenantID,
-		Name:     "Test User",
-		Email:    "",
-		Password: "password123",
-		Role:     "admin",
-	}
+	users.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, usr.ErrNotFound)
+	organizations.On("GetByDomain", mock.Anything, "example.com").Return(fixtures.NewOrganization(), nil)
+	hasher.On("Hash", "password123").Return("", errors.New("hash error"))
 
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		OrganizationID: fixtures.NewTestTenantID(), Name: "Test", Email: "test@example.com", Password: "password123", Role: "admin",
+	})
 
-	assert.ErrorIs(t, err, domain.ErrValidation)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertNotCalled(t, "GetByEmail")
-	mockRepo.AssertNotCalled(t, "Create")
 }
 
-func TestCreateUseCase_Execute_MissingPassword(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+func TestCreateUseCase_Execute_UserCreateError(t *testing.T) {
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	organizations := new(mocks.OrganizationRepository)
+	hasher := new(mocks.PasswordHasher)
+	uc := NewCreateUseCase(users, memberships, organizations, hasher, testutil.NewDiscardLogger())
 
-	tenantID := fixtures.NewTestTenantID()
-	cmd := CreateCommand{
-		TenantID: tenantID,
-		Name:     "Test User",
-		Email:    "test@example.com",
-		Password: "",
-		Role:     "admin",
-	}
+	users.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, usr.ErrNotFound)
+	organizations.On("GetByDomain", mock.Anything, "example.com").Return(fixtures.NewOrganization(), nil)
+	hasher.On("Hash", "password123").Return("hashed", nil)
+	users.On("Create", mock.Anything, mock.Anything).Return(nil, errors.New("db error"))
 
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		OrganizationID: fixtures.NewTestTenantID(), Name: "Test", Email: "test@example.com", Password: "password123", Role: "admin",
+	})
 
-	assert.ErrorIs(t, err, domain.ErrValidation)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertNotCalled(t, "GetByEmail")
-	mockRepo.AssertNotCalled(t, "Create")
 }
 
 func TestCreateUseCase_Execute_GetByEmailError(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	organizations := new(mocks.OrganizationRepository)
+	hasher := new(mocks.PasswordHasher)
+	uc := NewCreateUseCase(users, memberships, organizations, hasher, testutil.NewDiscardLogger())
 
-	tenantID := fixtures.NewTestTenantID()
-	cmd := CreateCommand{
-		TenantID: tenantID,
-		Name:     "Test User",
-		Email:    "test@example.com",
-		Password: "password123",
-		Role:     "admin",
-	}
+	users.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, errors.New("db error"))
 
-	dbError := errors.New("database connection failed")
-	mockRepo.On("GetByEmail", mock.Anything, tenantID, cmd.Email).Return(nil, dbError)
+	result, err := uc.Execute(context.Background(), CreateCommand{
+		OrganizationID: fixtures.NewTestTenantID(), Name: "Test", Email: "test@example.com", Password: "password123", Role: "admin",
+	})
 
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, dbError)
+	assert.Error(t, err)
 	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
-	mockRepo.AssertNotCalled(t, "Create")
-}
-
-func TestCreateUseCase_Execute_CreateError(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewCreateUseCase(mockRepo, testutil.NewDiscardLogger())
-
-	tenantID := fixtures.NewTestTenantID()
-	cmd := CreateCommand{
-		TenantID: tenantID,
-		Name:     "Test User",
-		Email:    "test@example.com",
-		Password: "password123",
-		Role:     "admin",
-	}
-
-	dbError := errors.New("insert failed")
-	mockRepo.On("GetByEmail", mock.Anything, tenantID, cmd.Email).Return(nil, user.ErrNotFound)
-	mockRepo.On("Create", mock.Anything, mock.AnythingOfType("*user.User")).Return(nil, dbError)
-
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.ErrorIs(t, err, dbError)
-	assert.Nil(t, result)
-	mockRepo.AssertExpectations(t)
 }

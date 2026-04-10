@@ -3,8 +3,9 @@ package mocks
 import (
 	"time"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/dsbraz/bud2/backend/internal/domain"
 )
 
 type TokenIssuer struct {

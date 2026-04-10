@@ -5,68 +5,71 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
 	"github.com/google/uuid"
+
+	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/dsbraz/bud2/backend/internal/domain/membership"
+	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
 )
 
 type UpdateCommand struct {
-	TenantID domain.TenantID
-	ID       uuid.UUID
-	Name     string
-	Email    string
-	Role     string
-	Status   string
+	OrganizationID domain.TenantID
+	ID             uuid.UUID
+	Name           string
+	Email          string
+	Role           string
+	Status         string
 }
 
 type UpdateUseCase struct {
-	repo   usr.Repository
-	logger *slog.Logger
+	users       usr.Repository
+	memberships membership.Repository
+	logger      *slog.Logger
 }
 
-func NewUpdateUseCase(repo usr.Repository, logger *slog.Logger) *UpdateUseCase {
-	return &UpdateUseCase{repo: repo, logger: logger}
+func NewUpdateUseCase(users usr.Repository, memberships membership.Repository, logger *slog.Logger) *UpdateUseCase {
+	return &UpdateUseCase{users: users, memberships: memberships, logger: logger}
 }
 
-func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*usr.User, error) {
-	uc.logger.Debug("updating user", "user_id", cmd.ID, "tenant_id", cmd.TenantID)
-
-	existing, err := uc.repo.GetByID(ctx, cmd.TenantID, cmd.ID)
+func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*Member, error) {
+	u, err := uc.users.GetByID(ctx, cmd.ID)
 	if err != nil {
-		uc.logger.Error("failed to fetch user for update", "error", err, "user_id", cmd.ID, "tenant_id", cmd.TenantID)
+		return nil, err
+	}
+	m, err := uc.memberships.GetByOrganizationAndUser(ctx, cmd.OrganizationID.UUID(), cmd.ID)
+	if err != nil {
 		return nil, err
 	}
 
-	originalEmail := existing.Email
-
-	existing.Name = cmd.Name
-	existing.Email = cmd.Email
-	existing.Role = usr.Role(cmd.Role)
-	existing.Status = usr.Status(cmd.Status)
-
-	if err := existing.Validate(); err != nil {
-		uc.logger.Warn("user validation failed", "error", err, "user_id", cmd.ID)
-		return nil, err
-	}
-
-	if originalEmail != cmd.Email {
-		other, err := uc.repo.GetByEmail(ctx, cmd.TenantID, cmd.Email)
+	if u.Email != cmd.Email {
+		other, err := uc.users.GetByEmail(ctx, cmd.Email)
 		if err == nil && other.ID != cmd.ID {
-			uc.logger.Warn("email conflict", "email", cmd.Email, "user_id", cmd.ID, "tenant_id", cmd.TenantID)
 			return nil, usr.ErrEmailExists
 		}
 		if err != nil && !errors.Is(err, usr.ErrNotFound) {
-			uc.logger.Error("failed to check email uniqueness", "error", err, "email", cmd.Email)
 			return nil, err
 		}
 	}
 
-	result, err := uc.repo.Update(ctx, existing)
-	if err != nil {
-		uc.logger.Error("failed to update user", "error", err, "user_id", cmd.ID, "tenant_id", cmd.TenantID)
+	u.Name = cmd.Name
+	u.Email = cmd.Email
+	m.Role = membership.Role(cmd.Role)
+	m.Status = membership.Status(cmd.Status)
+
+	if err := u.Validate(); err != nil {
+		return nil, err
+	}
+	if err := m.Validate(); err != nil {
 		return nil, err
 	}
 
-	uc.logger.Info("user updated", "user_id", result.ID, "email", result.Email, "tenant_id", cmd.TenantID)
-	return result, nil
+	updatedUser, err := uc.users.Update(ctx, u)
+	if err != nil {
+		return nil, err
+	}
+	updatedMembership, err := uc.memberships.Update(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+	return &Member{User: *updatedUser, OrganizationID: updatedMembership.OrganizationID, MembershipRole: updatedMembership.Role, MembershipStatus: updatedMembership.Status}, nil
 }

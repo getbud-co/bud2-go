@@ -2,155 +2,132 @@ package user
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	"github.com/dsbraz/bud2/backend/internal/domain/user"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/dsbraz/bud2/backend/internal/domain/membership"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
 	"github.com/dsbraz/bud2/backend/internal/test/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestListUseCase_Execute_Success(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	uc := NewListUseCase(users, memberships, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
-	users := fixtures.NewUserList(3)
-	expectedResult := user.ListResult{
-		Users: users,
-		Total: 3,
-	}
+	testUser := fixtures.NewUser()
+	testMembership := fixtures.NewMembership()
 
-	mockRepo.On("List", mock.Anything, mock.MatchedBy(func(filter user.ListFilter) bool {
-		return filter.TenantID == tenantID && filter.Page == 1 && filter.Size == 20
-	})).Return(expectedResult, nil)
+	memberships.On("ListByOrganization", mock.Anything, membership.ListByOrganizationFilter{
+		OrganizationID: tenantID.UUID(), Page: 1, Size: 20,
+	}).Return(membership.ListResult{Memberships: []membership.Membership{*testMembership}, Total: 1}, nil)
+	users.On("GetByID", mock.Anything, testMembership.UserID).Return(testUser, nil)
 
-	cmd := ListCommand{
-		TenantID: tenantID,
-		Page:     1,
-		Size:     20,
-	}
-
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), ListCommand{
+		OrganizationID: tenantID, Page: 1, Size: 20,
+	})
 
 	assert.NoError(t, err)
-	assert.Equal(t, 3, len(result.Users))
-	assert.Equal(t, int64(3), result.Total)
-	mockRepo.AssertExpectations(t)
+	assert.Len(t, result.Members, 1)
+	assert.Equal(t, int64(1), result.Total)
 }
 
 func TestListUseCase_Execute_WithStatusFilter(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	uc := NewListUseCase(users, memberships, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	status := "active"
-	users := fixtures.NewUserList(2)
-	expectedResult := user.ListResult{
-		Users: users,
-		Total: 2,
-	}
+	membershipStatus := membership.StatusActive
 
-	mockRepo.On("List", mock.Anything, mock.MatchedBy(func(filter user.ListFilter) bool {
-		return filter.TenantID == tenantID && filter.Status != nil && *filter.Status == user.StatusActive
-	})).Return(expectedResult, nil)
+	memberships.On("ListByOrganization", mock.Anything, membership.ListByOrganizationFilter{
+		OrganizationID: tenantID.UUID(), Status: &membershipStatus, Page: 1, Size: 20,
+	}).Return(membership.ListResult{}, nil)
 
-	cmd := ListCommand{
-		TenantID: tenantID,
-		Status:   &status,
-		Page:     1,
-		Size:     20,
-	}
-
-	result, err := uc.Execute(context.Background(), cmd)
+	_, err := uc.Execute(context.Background(), ListCommand{
+		OrganizationID: tenantID, Status: &status, Page: 1, Size: 20,
+	})
 
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(result.Users))
-	mockRepo.AssertExpectations(t)
-}
-
-func TestListUseCase_Execute_WithSearchFilter(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
-
-	tenantID := fixtures.NewTestTenantID()
-	search := "john"
-	users := fixtures.NewUserList(1)
-	expectedResult := user.ListResult{
-		Users: users,
-		Total: 1,
-	}
-
-	mockRepo.On("List", mock.Anything, mock.MatchedBy(func(filter user.ListFilter) bool {
-		return filter.TenantID == tenantID && filter.Search != nil && *filter.Search == "john"
-	})).Return(expectedResult, nil)
-
-	cmd := ListCommand{
-		TenantID: tenantID,
-		Search:   &search,
-		Page:     1,
-		Size:     20,
-	}
-
-	result, err := uc.Execute(context.Background(), cmd)
-
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(result.Users))
-	mockRepo.AssertExpectations(t)
+	memberships.AssertExpectations(t)
 }
 
 func TestListUseCase_Execute_DefaultPagination(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	uc := NewListUseCase(users, memberships, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
-	expectedResult := user.ListResult{
-		Users: []user.User{},
-		Total: 0,
-	}
 
-	mockRepo.On("List", mock.Anything, mock.MatchedBy(func(filter user.ListFilter) bool {
-		return filter.Page == 1 && filter.Size == 20
-	})).Return(expectedResult, nil)
+	memberships.On("ListByOrganization", mock.Anything, membership.ListByOrganizationFilter{
+		OrganizationID: tenantID.UUID(), Page: 1, Size: 20,
+	}).Return(membership.ListResult{}, nil)
 
-	cmd := ListCommand{
-		TenantID: tenantID,
-		Page:     0, // Invalid, should default to 1
-		Size:     0, // Invalid, should default to 20
-	}
-
-	result, err := uc.Execute(context.Background(), cmd)
+	_, err := uc.Execute(context.Background(), ListCommand{OrganizationID: tenantID})
 
 	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	mockRepo.AssertExpectations(t)
+	memberships.AssertExpectations(t)
 }
 
 func TestListUseCase_Execute_MaxSizeLimit(t *testing.T) {
-	mockRepo := new(mocks.UserRepository)
-	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	uc := NewListUseCase(users, memberships, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
-	expectedResult := user.ListResult{
-		Users: []user.User{},
-		Total: 0,
-	}
 
-	mockRepo.On("List", mock.Anything, mock.MatchedBy(func(filter user.ListFilter) bool {
-		return filter.Size == 100 // Should be capped at 100
-	})).Return(expectedResult, nil)
+	memberships.On("ListByOrganization", mock.Anything, membership.ListByOrganizationFilter{
+		OrganizationID: tenantID.UUID(), Page: 1, Size: 100,
+	}).Return(membership.ListResult{}, nil)
 
-	cmd := ListCommand{
-		TenantID: tenantID,
-		Page:     1,
-		Size:     200, // Exceeds max, should be capped
-	}
-
-	result, err := uc.Execute(context.Background(), cmd)
+	_, err := uc.Execute(context.Background(), ListCommand{
+		OrganizationID: tenantID, Page: 1, Size: 500,
+	})
 
 	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	mockRepo.AssertExpectations(t)
+	memberships.AssertExpectations(t)
+}
+
+func TestListUseCase_Execute_MembershipListError(t *testing.T) {
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	uc := NewListUseCase(users, memberships, testutil.NewDiscardLogger())
+
+	tenantID := fixtures.NewTestTenantID()
+
+	memberships.On("ListByOrganization", mock.Anything, mock.Anything).Return(membership.ListResult{}, errors.New("db error"))
+
+	result, err := uc.Execute(context.Background(), ListCommand{
+		OrganizationID: tenantID, Page: 1, Size: 20,
+	})
+
+	assert.Error(t, err)
+	assert.Empty(t, result.Members)
+}
+
+func TestListUseCase_Execute_UserFetchError(t *testing.T) {
+	users := new(mocks.UserRepository)
+	memberships := new(mocks.MembershipRepository)
+	uc := NewListUseCase(users, memberships, testutil.NewDiscardLogger())
+
+	tenantID := fixtures.NewTestTenantID()
+	testMembership := fixtures.NewMembership()
+
+	memberships.On("ListByOrganization", mock.Anything, mock.Anything).Return(membership.ListResult{
+		Memberships: []membership.Membership{*testMembership}, Total: 1,
+	}, nil)
+	users.On("GetByID", mock.Anything, testMembership.UserID).Return(nil, errors.New("db error"))
+
+	result, err := uc.Execute(context.Background(), ListCommand{
+		OrganizationID: tenantID, Page: 1, Size: 20,
+	})
+
+	assert.Error(t, err)
+	assert.Empty(t, result.Members)
 }

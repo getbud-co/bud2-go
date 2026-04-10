@@ -4,26 +4,31 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
 	"github.com/google/uuid"
+
+	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/dsbraz/bud2/backend/internal/domain/membership"
+	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
 )
 
 type GetUseCase struct {
-	repo   usr.Repository
-	logger *slog.Logger
+	users       usr.Repository
+	memberships membership.Repository
+	logger      *slog.Logger
 }
 
-func NewGetUseCase(repo usr.Repository, logger *slog.Logger) *GetUseCase {
-	return &GetUseCase{repo: repo, logger: logger}
+func NewGetUseCase(users usr.Repository, memberships membership.Repository, logger *slog.Logger) *GetUseCase {
+	return &GetUseCase{users: users, memberships: memberships, logger: logger}
 }
 
-func (uc *GetUseCase) Execute(ctx context.Context, tenantID domain.TenantID, id uuid.UUID) (*usr.User, error) {
-	uc.logger.Debug("fetching user", "user_id", id, "tenant_id", tenantID)
-	result, err := uc.repo.GetByID(ctx, tenantID, id)
+func (uc *GetUseCase) Execute(ctx context.Context, organizationID domain.TenantID, id uuid.UUID) (*Member, error) {
+	m, err := uc.memberships.GetByOrganizationAndUser(ctx, organizationID.UUID(), id)
 	if err != nil {
-		uc.logger.Error("failed to fetch user", "error", err, "user_id", id, "tenant_id", tenantID)
 		return nil, err
 	}
-	return result, nil
+	u, err := uc.users.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &Member{User: *u, OrganizationID: m.OrganizationID, MembershipRole: m.Role, MembershipStatus: m.Status}, nil
 }

@@ -5,23 +5,27 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/dsbraz/bud2/backend/internal/domain"
+	domainauth "github.com/dsbraz/bud2/backend/internal/domain/auth"
+	"github.com/dsbraz/bud2/backend/internal/domain/membership"
 	"github.com/dsbraz/bud2/backend/internal/domain/organization"
 	"github.com/dsbraz/bud2/backend/internal/domain/user"
-	"github.com/dsbraz/bud2/backend/internal/infra/auth"
-	"github.com/google/uuid"
 )
 
 var ErrAlreadyBootstrapped = errors.New("bootstrap already completed")
 
 type Command struct {
-	OrganizationName string
-	OrganizationSlug string
-	AdminName        string
-	AdminEmail       string
-	AdminPassword    string
+	OrganizationName      string
+	OrganizationDomain    string
+	OrganizationWorkspace string
+	AdminName             string
+	AdminEmail            string
+	AdminPassword         string
 }
 
 type Result struct {
@@ -31,7 +35,7 @@ type Result struct {
 }
 
 type TxManager interface {
-	WithTx(ctx context.Context, fn func(orgRepo organization.Repository, userRepo user.Repository) error) error
+	WithTx(ctx context.Context, fn func(orgRepo organization.Repository, userRepo user.Repository, membershipRepo membership.Repository) error) error
 }
 
 type TokenIssuer interface {
@@ -39,20 +43,22 @@ type TokenIssuer interface {
 }
 
 type UseCase struct {
-	orgRepo  organization.Repository
-	txm      TxManager
-	issuer   TokenIssuer
-	tokenTTL time.Duration
-	logger   *slog.Logger
+	orgRepo        organization.Repository
+	txm            TxManager
+	issuer         TokenIssuer
+	passwordHasher domainauth.PasswordHasher
+	tokenTTL       time.Duration
+	logger         *slog.Logger
 }
 
-func NewUseCase(orgRepo organization.Repository, txm TxManager, issuer TokenIssuer, logger *slog.Logger) *UseCase {
+func NewUseCase(orgRepo organization.Repository, txm TxManager, issuer TokenIssuer, passwordHasher domainauth.PasswordHasher, logger *slog.Logger) *UseCase {
 	return &UseCase{
-		orgRepo:  orgRepo,
-		txm:      txm,
-		issuer:   issuer,
-		tokenTTL: 24 * time.Hour,
-		logger:   logger,
+		orgRepo:        orgRepo,
+		txm:            txm,
+		issuer:         issuer,
+		passwordHasher: passwordHasher,
+		tokenTTL:       24 * time.Hour,
+		logger:         logger,
 	}
 }
 
@@ -71,19 +77,21 @@ func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
 
 	var createdOrg *organization.Organization
 	var createdAdmin *user.User
+	var createdMembership *membership.Membership
 
-	passwordHash, err := auth.HashPassword(cmd.AdminPassword)
+	passwordHash, err := uc.passwordHasher.Hash(cmd.AdminPassword)
 	if err != nil {
 		uc.logger.Error("failed to hash admin password", "error", err)
 		return nil, fmt.Errorf("invalid admin password: %w", err)
 	}
 
-	err = uc.txm.WithTx(ctx, func(orgRepo organization.Repository, userRepo user.Repository) error {
+	err = uc.txm.WithTx(ctx, func(orgRepo organization.Repository, userRepo user.Repository, membershipRepo membership.Repository) error {
 		var txErr error
 		createdOrg, txErr = orgRepo.Create(ctx, &organization.Organization{
-			Name:   cmd.OrganizationName,
-			Slug:   cmd.OrganizationSlug,
-			Status: organization.StatusActive,
+			Name:      cmd.OrganizationName,
+			Domain:    strings.ToLower(strings.TrimSpace(cmd.OrganizationDomain)),
+			Workspace: strings.TrimSpace(cmd.OrganizationWorkspace),
+			Status:    organization.StatusActive,
 		})
 		if txErr != nil {
 			uc.logger.Error("failed to create organization in transaction", "error", txErr)
@@ -91,13 +99,12 @@ func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
 		}
 
 		admin := &user.User{
-			ID:           uuid.New(),
-			TenantID:     domain.TenantID(createdOrg.ID),
-			Name:         cmd.AdminName,
-			Email:        cmd.AdminEmail,
-			PasswordHash: passwordHash,
-			Role:         user.RoleAdmin,
-			Status:       user.StatusActive,
+			ID:            uuid.New(),
+			Name:          cmd.AdminName,
+			Email:         cmd.AdminEmail,
+			PasswordHash:  passwordHash,
+			Status:        user.StatusActive,
+			IsSystemAdmin: false,
 		}
 		if txErr = admin.Validate(); txErr != nil {
 			uc.logger.Warn("admin validation failed", "error", txErr, "email", cmd.AdminEmail)
@@ -105,6 +112,16 @@ func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
 		}
 
 		createdAdmin, txErr = userRepo.Create(ctx, admin)
+		if txErr != nil {
+			return txErr
+		}
+
+		createdMembership, txErr = membershipRepo.Create(ctx, &membership.Membership{
+			OrganizationID: createdOrg.ID,
+			UserID:         createdAdmin.ID,
+			Role:           membership.RoleAdmin,
+			Status:         membership.StatusActive,
+		})
 		return txErr
 	})
 	if err != nil {
@@ -113,9 +130,11 @@ func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
 	}
 
 	token, err := uc.issuer.IssueToken(domain.UserClaims{
-		UserID:   domain.UserID(createdAdmin.ID),
-		TenantID: createdAdmin.TenantID,
-		Role:     string(createdAdmin.Role),
+		UserID:                domain.UserID(createdAdmin.ID),
+		ActiveOrganizationID:  domain.TenantID(createdOrg.ID),
+		HasActiveOrganization: true,
+		MembershipRole:        string(createdMembership.Role),
+		IsSystemAdmin:         createdAdmin.IsSystemAdmin,
 	}, uc.tokenTTL)
 	if err != nil {
 		uc.logger.Error("failed to generate bootstrap token", "error", err, "user_id", createdAdmin.ID)

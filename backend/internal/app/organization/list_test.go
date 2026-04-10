@@ -4,115 +4,63 @@ import (
 	"context"
 	"testing"
 
-	"github.com/dsbraz/bud2/backend/internal/domain/organization"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
 	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
 	"github.com/dsbraz/bud2/backend/internal/test/mocks"
 	"github.com/dsbraz/bud2/backend/internal/test/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestListUseCase_Execute_Success(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewListUseCase(repo, testutil.NewDiscardLogger())
 
-	orgs := fixtures.NewOrganizationList(3)
-	expectedResult := organization.ListResult{
-		Organizations: orgs,
-		Total:         3,
-	}
+	orgs := fixtures.NewOrganizationList(2)
+	expected := org.ListResult{Organizations: orgs, Total: 2}
+	repo.On("List", mock.Anything, org.ListFilter{Page: 1, Size: 20}).Return(expected, nil)
 
-	mockRepo.On("List", mock.Anything, mock.MatchedBy(func(filter organization.ListFilter) bool {
-		return filter.Page == 1 && filter.Size == 20
-	})).Return(expectedResult, nil)
-
-	cmd := ListCommand{
-		Page: 1,
-		Size: 20,
-	}
-
-	result, err := uc.Execute(context.Background(), cmd)
+	result, err := uc.Execute(context.Background(), ListCommand{Page: 1, Size: 20})
 
 	assert.NoError(t, err)
-	assert.Equal(t, 3, len(result.Organizations))
-	assert.Equal(t, int64(3), result.Total)
-	mockRepo.AssertExpectations(t)
+	assert.Equal(t, expected, result)
 }
 
 func TestListUseCase_Execute_WithStatusFilter(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewListUseCase(repo, testutil.NewDiscardLogger())
 
 	status := "active"
-	orgs := fixtures.NewOrganizationList(2)
-	expectedResult := organization.ListResult{
-		Organizations: orgs,
-		Total:         2,
-	}
+	s := org.StatusActive
+	repo.On("List", mock.Anything, org.ListFilter{Status: &s, Page: 1, Size: 20}).Return(org.ListResult{}, nil)
 
-	mockRepo.On("List", mock.Anything, mock.MatchedBy(func(filter organization.ListFilter) bool {
-		return filter.Status != nil && *filter.Status == organization.StatusActive
-	})).Return(expectedResult, nil)
-
-	cmd := ListCommand{
-		Status: &status,
-		Page:   1,
-		Size:   20,
-	}
-
-	result, err := uc.Execute(context.Background(), cmd)
+	_, err := uc.Execute(context.Background(), ListCommand{Status: &status, Page: 1, Size: 20})
 
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(result.Organizations))
-	mockRepo.AssertExpectations(t)
+	repo.AssertExpectations(t)
 }
 
 func TestListUseCase_Execute_DefaultPagination(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewListUseCase(repo, testutil.NewDiscardLogger())
 
-	expectedResult := organization.ListResult{
-		Organizations: []organization.Organization{},
-		Total:         0,
-	}
+	repo.On("List", mock.Anything, org.ListFilter{Page: 1, Size: 20}).Return(org.ListResult{}, nil)
 
-	mockRepo.On("List", mock.Anything, mock.MatchedBy(func(filter organization.ListFilter) bool {
-		return filter.Page == 1 && filter.Size == 20
-	})).Return(expectedResult, nil)
-
-	cmd := ListCommand{
-		Page: 0, // Invalid, should default to 1
-		Size: 0, // Invalid, should default to 20
-	}
-
-	result, err := uc.Execute(context.Background(), cmd)
+	_, err := uc.Execute(context.Background(), ListCommand{})
 
 	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	mockRepo.AssertExpectations(t)
+	repo.AssertExpectations(t)
 }
 
 func TestListUseCase_Execute_MaxSizeLimit(t *testing.T) {
-	mockRepo := new(mocks.OrganizationRepository)
-	uc := NewListUseCase(mockRepo, testutil.NewDiscardLogger())
+	repo := new(mocks.OrganizationRepository)
+	uc := NewListUseCase(repo, testutil.NewDiscardLogger())
 
-	expectedResult := organization.ListResult{
-		Organizations: []organization.Organization{},
-		Total:         0,
-	}
+	repo.On("List", mock.Anything, org.ListFilter{Page: 1, Size: 100}).Return(org.ListResult{}, nil)
 
-	mockRepo.On("List", mock.Anything, mock.MatchedBy(func(filter organization.ListFilter) bool {
-		return filter.Size == 100 // Should be capped at 100
-	})).Return(expectedResult, nil)
-
-	cmd := ListCommand{
-		Page: 1,
-		Size: 200, // Exceeds max, should be capped
-	}
-
-	result, err := uc.Execute(context.Background(), cmd)
+	_, err := uc.Execute(context.Background(), ListCommand{Page: 1, Size: 500})
 
 	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	mockRepo.AssertExpectations(t)
+	repo.AssertExpectations(t)
 }

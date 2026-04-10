@@ -3,8 +3,9 @@ package fixtures
 import (
 	"context"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
 	"github.com/google/uuid"
+
+	"github.com/dsbraz/bud2/backend/internal/domain"
 )
 
 func NewContext() context.Context {
@@ -19,7 +20,9 @@ func NewContextWithTenant(tenantID domain.TenantID) context.Context {
 func NewContextWithUserClaims(claims domain.UserClaims) context.Context {
 	ctx := NewContext()
 	ctx = domain.ClaimsToContext(ctx, claims)
-	ctx = domain.TenantIDToContext(ctx, claims.TenantID)
+	if claims.HasActiveOrganization {
+		ctx = domain.TenantIDToContext(ctx, claims.ActiveOrganizationID)
+	}
 	return ctx
 }
 
@@ -29,9 +32,10 @@ func NewTestTenantID() domain.TenantID {
 
 func NewTestUserClaims() domain.UserClaims {
 	return domain.UserClaims{
-		UserID:   domain.UserID(uuid.MustParse("660e8400-e29b-41d4-a716-446655440000")),
-		TenantID: NewTestTenantID(),
-		Role:     "admin",
+		UserID:                domain.UserID(uuid.MustParse("660e8400-e29b-41d4-a716-446655440000")),
+		ActiveOrganizationID:  NewTestTenantID(),
+		HasActiveOrganization: true,
+		MembershipRole:        "admin",
 	}
 }
 
