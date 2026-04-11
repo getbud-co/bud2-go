@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	apptx "github.com/dsbraz/bud2/backend/internal/app/tx"
 	"github.com/dsbraz/bud2/backend/internal/domain/membership"
 	"github.com/dsbraz/bud2/backend/internal/domain/organization"
 	"github.com/dsbraz/bud2/backend/internal/domain/user"
@@ -22,8 +23,20 @@ type mockTxManager struct {
 	membershipRepo *mocks.MembershipRepository
 }
 
-func (m *mockTxManager) WithTx(ctx context.Context, fn func(orgRepo organization.Repository, userRepo user.Repository, membershipRepo membership.Repository) error) error {
-	return fn(m.orgRepo, m.userRepo, m.membershipRepo)
+type mockTxRepos struct {
+	orgRepo        organization.Repository
+	userRepo       user.Repository
+	membershipRepo membership.Repository
+}
+
+func (m mockTxRepos) Organizations() organization.Repository { return m.orgRepo }
+func (m mockTxRepos) Users() user.Repository                 { return m.userRepo }
+func (m mockTxRepos) Memberships() membership.Repository     { return m.membershipRepo }
+
+var _ apptx.Repositories = mockTxRepos{}
+
+func (m *mockTxManager) WithTx(ctx context.Context, fn func(repos apptx.Repositories) error) error {
+	return fn(mockTxRepos{orgRepo: m.orgRepo, userRepo: m.userRepo, membershipRepo: m.membershipRepo})
 }
 
 func newTestCommand() Command {

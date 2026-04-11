@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	apptx "github.com/dsbraz/bud2/backend/internal/app/tx"
 	"github.com/dsbraz/bud2/backend/internal/domain"
 	domainauth "github.com/dsbraz/bud2/backend/internal/domain/auth"
 	"github.com/dsbraz/bud2/backend/internal/domain/membership"
@@ -34,24 +35,20 @@ type Result struct {
 	AccessToken  string
 }
 
-type TxManager interface {
-	WithTx(ctx context.Context, fn func(orgRepo organization.Repository, userRepo user.Repository, membershipRepo membership.Repository) error) error
-}
-
 type TokenIssuer interface {
 	IssueToken(claims domain.UserClaims, ttl time.Duration) (string, error)
 }
 
 type UseCase struct {
 	orgRepo        organization.Repository
-	txm            TxManager
+	txm            apptx.Manager
 	issuer         TokenIssuer
 	passwordHasher domainauth.PasswordHasher
 	tokenTTL       time.Duration
 	logger         *slog.Logger
 }
 
-func NewUseCase(orgRepo organization.Repository, txm TxManager, issuer TokenIssuer, passwordHasher domainauth.PasswordHasher, logger *slog.Logger) *UseCase {
+func NewUseCase(orgRepo organization.Repository, txm apptx.Manager, issuer TokenIssuer, passwordHasher domainauth.PasswordHasher, logger *slog.Logger) *UseCase {
 	return &UseCase{
 		orgRepo:        orgRepo,
 		txm:            txm,
@@ -85,9 +82,9 @@ func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
 		return nil, fmt.Errorf("invalid admin password: %w", err)
 	}
 
-	err = uc.txm.WithTx(ctx, func(orgRepo organization.Repository, userRepo user.Repository, membershipRepo membership.Repository) error {
+	err = uc.txm.WithTx(ctx, func(repos apptx.Repositories) error {
 		var txErr error
-		createdOrg, txErr = orgRepo.Create(ctx, &organization.Organization{
+		createdOrg, txErr = repos.Organizations().Create(ctx, &organization.Organization{
 			Name:      cmd.OrganizationName,
 			Domain:    strings.ToLower(strings.TrimSpace(cmd.OrganizationDomain)),
 			Workspace: strings.TrimSpace(cmd.OrganizationWorkspace),
@@ -111,12 +108,12 @@ func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
 			return txErr
 		}
 
-		createdAdmin, txErr = userRepo.Create(ctx, admin)
+		createdAdmin, txErr = repos.Users().Create(ctx, admin)
 		if txErr != nil {
 			return txErr
 		}
 
-		createdMembership, txErr = membershipRepo.Create(ctx, &membership.Membership{
+		createdMembership, txErr = repos.Memberships().Create(ctx, &membership.Membership{
 			OrganizationID: createdOrg.ID,
 			UserID:         createdAdmin.ID,
 			Role:           membership.RoleAdmin,

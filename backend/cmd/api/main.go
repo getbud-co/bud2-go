@@ -92,7 +92,7 @@ func main() {
 	orgRepo := postgres.NewOrgRepository(queries)
 	userRepo := postgres.NewUserRepository(queries)
 	membershipRepo := postgres.NewMembershipRepository(queries)
-	txBootstrapper := postgres.NewTxBootstrapper(pool)
+	txManager := postgres.NewTxManager(pool)
 	tokenIssuer := infraauth.NewTokenIssuer(cfg.JWTSecret)
 	passwordHasher := infraauth.NewDefaultBcryptPasswordHasher()
 
@@ -102,12 +102,12 @@ func main() {
 	listOrg := apporg.NewListUseCase(orgRepo, logger)
 	updateOrg := apporg.NewUpdateUseCase(orgRepo, logger)
 
-	createUser := appuser.NewCreateUseCase(userRepo, membershipRepo, orgRepo, passwordHasher, logger)
+	createUser := appuser.NewCreateUseCase(userRepo, membershipRepo, orgRepo, txManager, passwordHasher, logger)
 	getUser := appuser.NewGetUseCase(userRepo, membershipRepo, logger)
 	listUser := appuser.NewListUseCase(userRepo, membershipRepo, logger)
-	updateUser := appuser.NewUpdateUseCase(userRepo, membershipRepo, logger)
+	updateUser := appuser.NewUpdateUseCase(userRepo, membershipRepo, txManager, logger)
 
-	bootstrapUC := appbootstrap.NewUseCase(orgRepo, txBootstrapper, tokenIssuer, passwordHasher, logger)
+	bootstrapUC := appbootstrap.NewUseCase(orgRepo, txManager, tokenIssuer, passwordHasher, logger)
 	loginUC := appauth.NewLoginUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, logger)
 	getSessionUC := appauth.NewGetSessionUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, logger)
 	switchOrganizationUC := appauth.NewSwitchOrganizationUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, logger)

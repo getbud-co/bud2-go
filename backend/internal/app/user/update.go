@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	apptx "github.com/dsbraz/bud2/backend/internal/app/tx"
 	"github.com/dsbraz/bud2/backend/internal/domain"
 	"github.com/dsbraz/bud2/backend/internal/domain/membership"
 	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
@@ -24,50 +25,56 @@ type UpdateCommand struct {
 type UpdateUseCase struct {
 	users       usr.Repository
 	memberships membership.Repository
+	txm         apptx.Manager
 	logger      *slog.Logger
 }
 
-func NewUpdateUseCase(users usr.Repository, memberships membership.Repository, logger *slog.Logger) *UpdateUseCase {
-	return &UpdateUseCase{users: users, memberships: memberships, logger: logger}
+func NewUpdateUseCase(users usr.Repository, memberships membership.Repository, txm apptx.Manager, logger *slog.Logger) *UpdateUseCase {
+	return &UpdateUseCase{users: users, memberships: memberships, txm: txm, logger: logger}
 }
 
 func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*Member, error) {
-	u, err := uc.users.GetByID(ctx, cmd.ID)
-	if err != nil {
-		return nil, err
-	}
-	m, err := uc.memberships.GetByOrganizationAndUser(ctx, cmd.OrganizationID.UUID(), cmd.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	if u.Email != cmd.Email {
-		other, err := uc.users.GetByEmail(ctx, cmd.Email)
-		if err == nil && other.ID != cmd.ID {
-			return nil, usr.ErrEmailExists
+	var updatedUser *usr.User
+	var updatedMembership *membership.Membership
+	err := uc.txm.WithTx(ctx, func(repos apptx.Repositories) error {
+		u, txErr := repos.Users().GetByID(ctx, cmd.ID)
+		if txErr != nil {
+			return txErr
 		}
-		if err != nil && !errors.Is(err, usr.ErrNotFound) {
-			return nil, err
+		m, txErr := repos.Memberships().GetByOrganizationAndUser(ctx, cmd.OrganizationID.UUID(), cmd.ID)
+		if txErr != nil {
+			return txErr
 		}
-	}
 
-	u.Name = cmd.Name
-	u.Email = cmd.Email
-	m.Role = membership.Role(cmd.Role)
-	m.Status = membership.Status(cmd.Status)
+		if u.Email != cmd.Email {
+			other, lookupErr := repos.Users().GetByEmail(ctx, cmd.Email)
+			if lookupErr == nil && other.ID != cmd.ID {
+				return usr.ErrEmailExists
+			}
+			if lookupErr != nil && !errors.Is(lookupErr, usr.ErrNotFound) {
+				return lookupErr
+			}
+		}
 
-	if err := u.Validate(); err != nil {
-		return nil, err
-	}
-	if err := m.Validate(); err != nil {
-		return nil, err
-	}
+		u.Name = cmd.Name
+		u.Email = cmd.Email
+		m.Role = membership.Role(cmd.Role)
+		m.Status = membership.Status(cmd.Status)
 
-	updatedUser, err := uc.users.Update(ctx, u)
-	if err != nil {
-		return nil, err
-	}
-	updatedMembership, err := uc.memberships.Update(ctx, m)
+		if txErr = u.Validate(); txErr != nil {
+			return txErr
+		}
+		if txErr = m.Validate(); txErr != nil {
+			return txErr
+		}
+
+		updatedUser, txErr = repos.Users().Update(ctx, u)
+		if txErr != nil {
+			return txErr
+		}
+		updatedMembership, txErr = repos.Memberships().Update(ctx, m)
+		return txErr
+	})
 	if err != nil {
 		return nil, err
 	}
