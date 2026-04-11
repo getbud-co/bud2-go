@@ -38,9 +38,9 @@ func (m *mockSessionUseCase) Execute(ctx context.Context, claims domain.UserClai
 	return args.Get(0).(*appauth.Session), args.Error(1)
 }
 
-type mockSwitchOrganizationUseCase struct{ mock.Mock }
+type mockUpdateSessionUseCase struct{ mock.Mock }
 
-func (m *mockSwitchOrganizationUseCase) Execute(ctx context.Context, claims domain.UserClaims, cmd appauth.SwitchOrganizationCommand) (*appauth.SwitchOrganizationResult, error) {
+func (m *mockUpdateSessionUseCase) Execute(ctx context.Context, claims domain.UserClaims, cmd appauth.SwitchOrganizationCommand) (*appauth.SwitchOrganizationResult, error) {
 	args := m.Called(ctx, claims, cmd)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -50,7 +50,7 @@ func (m *mockSwitchOrganizationUseCase) Execute(ctx context.Context, claims doma
 
 func TestHandler_Login_Success(t *testing.T) {
 	loginUC := new(mockLoginUseCase)
-	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockSwitchOrganizationUseCase))
+	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockUpdateSessionUseCase))
 
 	testUser := fixtures.NewUser()
 	testOrg := fixtures.NewOrganization()
@@ -77,7 +77,7 @@ func TestHandler_Login_Success(t *testing.T) {
 func TestHandler_Session_Success(t *testing.T) {
 	claims := fixtures.NewTestUserClaims()
 	sessionUC := new(mockSessionUseCase)
-	handler := NewHandler(new(mockLoginUseCase), sessionUC, new(mockSwitchOrganizationUseCase))
+	handler := NewHandler(new(mockLoginUseCase), sessionUC, new(mockUpdateSessionUseCase))
 	testUser := fixtures.NewUser()
 	sessionUC.On("Execute", mock.Anything, claims).Return(&appauth.Session{User: *testUser}, nil)
 
@@ -87,25 +87,25 @@ func TestHandler_Session_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
-func TestHandler_SwitchOrganization_Success(t *testing.T) {
+func TestHandler_UpdateSession_Success(t *testing.T) {
 	claims := fixtures.NewTestUserClaims()
-	switchUC := new(mockSwitchOrganizationUseCase)
-	handler := NewHandler(new(mockLoginUseCase), new(mockSessionUseCase), switchUC)
+	updateUC := new(mockUpdateSessionUseCase)
+	handler := NewHandler(new(mockLoginUseCase), new(mockSessionUseCase), updateUC)
 	orgID := uuid.New()
 	testUser := fixtures.NewUser()
-	switchUC.On("Execute", mock.Anything, claims, appauth.SwitchOrganizationCommand{OrganizationID: orgID}).Return(&appauth.SwitchOrganizationResult{Token: "new-token", Session: appauth.Session{User: *testUser}}, nil)
+	updateUC.On("Execute", mock.Anything, claims, appauth.SwitchOrganizationCommand{OrganizationID: orgID}).Return(&appauth.SwitchOrganizationResult{Token: "new-token", Session: appauth.Session{User: *testUser}}, nil)
 
-	body, _ := json.Marshal(switchOrganizationRequest{OrganizationID: orgID.String()})
-	req := httptest.NewRequest(http.MethodPost, "/auth/switch-organization", bytes.NewReader(body)).WithContext(fixtures.NewContextWithUserClaims(claims))
+	body, _ := json.Marshal(updateSessionRequest{OrganizationID: orgID.String()})
+	req := httptest.NewRequest(http.MethodPut, "/auth/session", bytes.NewReader(body)).WithContext(fixtures.NewContextWithUserClaims(claims))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-	handler.SwitchOrganization(rr, req)
+	handler.UpdateSession(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
 func TestHandler_Login_InvalidCredentials(t *testing.T) {
 	loginUC := new(mockLoginUseCase)
-	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockSwitchOrganizationUseCase))
+	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockUpdateSessionUseCase))
 	body, _ := json.Marshal(loginRequest{Email: "admin@example.com", Password: "wrongpassword"})
 	loginUC.On("Execute", mock.Anything, mock.Anything).Return(nil, appauth.ErrInvalidCredentials)
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
@@ -117,7 +117,7 @@ func TestHandler_Login_InvalidCredentials(t *testing.T) {
 
 func TestHandler_Login_InternalError(t *testing.T) {
 	loginUC := new(mockLoginUseCase)
-	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockSwitchOrganizationUseCase))
+	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockUpdateSessionUseCase))
 	body, _ := json.Marshal(loginRequest{Email: "admin@example.com", Password: "password123"})
 	loginUC.On("Execute", mock.Anything, mock.Anything).Return(nil, errors.New("internal error"))
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))

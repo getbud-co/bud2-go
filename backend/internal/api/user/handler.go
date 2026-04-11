@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -14,8 +13,6 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/api/validator"
 	appuser "github.com/dsbraz/bud2/backend/internal/app/user"
 	"github.com/dsbraz/bud2/backend/internal/domain"
-	"github.com/dsbraz/bud2/backend/internal/domain/membership"
-	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
 )
 
 type createUseCase interface {
@@ -45,51 +42,6 @@ func NewHandler(create createUseCase, get getUseCase, list listUseCase, update u
 	return &Handler{create: create, get: get, list: list, update: update}
 }
 
-type createRequest struct {
-	Name     string `json:"name" validate:"required,min=2,max=100"`
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
-	Role     string `json:"role" validate:"required,oneof=admin manager collaborator"`
-}
-
-type updateRequest struct {
-	Name   string `json:"name" validate:"required,min=2,max=100"`
-	Email  string `json:"email" validate:"required,email"`
-	Role   string `json:"role" validate:"required,oneof=admin manager collaborator"`
-	Status string `json:"status" validate:"required,oneof=invited active inactive"`
-}
-
-type Response struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	Email         string `json:"email"`
-	Role          string `json:"role"`
-	Status        string `json:"status"`
-	IsSystemAdmin bool   `json:"is_system_admin"`
-	CreatedAt     string `json:"created_at"`
-	UpdatedAt     string `json:"updated_at"`
-}
-
-type ListResponse struct {
-	Data  []Response `json:"data"`
-	Total int64      `json:"total"`
-	Page  int        `json:"page"`
-	Size  int        `json:"size"`
-}
-
-func toResponse(m *appuser.Member) Response {
-	return Response{
-		ID:            m.User.ID.String(),
-		Name:          m.User.Name,
-		Email:         m.User.Email,
-		Role:          string(m.MembershipRole),
-		Status:        string(m.MembershipStatus),
-		IsSystemAdmin: m.User.IsSystemAdmin,
-		CreatedAt:     m.User.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:     m.User.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	}
-}
-
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	organizationID, err := domain.TenantIDFromContext(r.Context())
 	if err != nil {
@@ -107,7 +59,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.create.Execute(r.Context(), appuser.CreateCommand{OrganizationID: organizationID, Name: req.Name, Email: req.Email, Password: req.Password, Role: req.Role})
+	result, err := h.create.Execute(r.Context(), req.toCommand(organizationID))
 	if err != nil {
 		handleError(w, err)
 		return
@@ -197,23 +149,10 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.update.Execute(r.Context(), appuser.UpdateCommand{OrganizationID: organizationID, ID: id, Name: req.Name, Email: req.Email, Role: req.Role, Status: req.Status})
+	result, err := h.update.Execute(r.Context(), req.toCommand(organizationID, id))
 	if err != nil {
 		handleError(w, err)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusOK, toResponse(result))
-}
-
-func handleError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, usr.ErrNotFound), errors.Is(err, membership.ErrNotFound):
-		httputil.WriteProblem(w, http.StatusNotFound, "Not Found", err.Error())
-	case errors.Is(err, usr.ErrEmailExists), errors.Is(err, membership.ErrAlreadyExists):
-		httputil.WriteProblem(w, http.StatusConflict, "Conflict", err.Error())
-	case errors.Is(err, domain.ErrValidation):
-		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())
-	default:
-		httputil.WriteProblem(w, http.StatusInternalServerError, "Internal Server Error", "an unexpected error occurred")
-	}
 }

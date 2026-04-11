@@ -3,10 +3,8 @@ package organization
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -14,7 +12,6 @@ import (
 	"github.com/dsbraz/bud2/backend/internal/api/httputil"
 	"github.com/dsbraz/bud2/backend/internal/api/validator"
 	apporg "github.com/dsbraz/bud2/backend/internal/app/organization"
-	"github.com/dsbraz/bud2/backend/internal/domain"
 	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
 )
 
@@ -50,53 +47,6 @@ func NewHandler(
 	return &Handler{create: create, get: get, list: list, update: update}
 }
 
-// DTOs
-
-type createRequest struct {
-	Name      string `json:"name" validate:"required,min=2,max=100"`
-	Domain    string `json:"domain" validate:"required,email"`
-	Workspace string `json:"workspace" validate:"required,min=2,max=100,slug"`
-	Status    string `json:"status" validate:"omitempty,oneof=active inactive"`
-}
-
-type updateRequest struct {
-	Name      string `json:"name" validate:"required,min=2,max=100"`
-	Domain    string `json:"domain" validate:"required,email"`
-	Workspace string `json:"workspace" validate:"required,min=2,max=100,slug"`
-	Status    string `json:"status" validate:"required,oneof=active inactive"`
-}
-
-type Response struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Domain    string    `json:"domain"`
-	Workspace string    `json:"workspace"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-type ListResponse struct {
-	Data  []Response `json:"data"`
-	Total int64      `json:"total"`
-	Page  int        `json:"page"`
-	Size  int        `json:"size"`
-}
-
-func toResponse(o *org.Organization) Response {
-	return Response{
-		ID:        o.ID,
-		Name:      o.Name,
-		Domain:    o.Domain,
-		Workspace: o.Workspace,
-		Status:    string(o.Status),
-		CreatedAt: o.CreatedAt,
-		UpdatedAt: o.UpdatedAt,
-	}
-}
-
-// Handlers
-
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -104,18 +54,12 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate request format
 	if err := validator.Validate(req); err != nil {
 		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Validation Error", validator.FormatValidationErrors(err))
 		return
 	}
 
-	result, err := h.create.Execute(r.Context(), apporg.CreateCommand{
-		Name:      req.Name,
-		Domain:    req.Domain,
-		Workspace: req.Workspace,
-		Status:    req.Status,
-	})
+	result, err := h.create.Execute(r.Context(), req.toCommand())
 	if err != nil {
 		handleError(w, err)
 		return
@@ -174,12 +118,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		items[i] = toResponse(&result.Organizations[i])
 	}
 
-	httputil.WriteJSON(w, http.StatusOK, ListResponse{
-		Data:  items,
-		Total: result.Total,
-		Page:  page,
-		Size:  size,
-	})
+	httputil.WriteJSON(w, http.StatusOK, ListResponse{Data: items, Total: result.Total, Page: page, Size: size})
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
@@ -195,36 +134,16 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate request format
 	if err := validator.Validate(req); err != nil {
 		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Validation Error", validator.FormatValidationErrors(err))
 		return
 	}
 
-	result, err := h.update.Execute(r.Context(), apporg.UpdateCommand{
-		ID:        id,
-		Name:      req.Name,
-		Domain:    req.Domain,
-		Workspace: req.Workspace,
-		Status:    req.Status,
-	})
+	result, err := h.update.Execute(r.Context(), req.toCommand(id))
 	if err != nil {
 		handleError(w, err)
 		return
 	}
 
 	httputil.WriteJSON(w, http.StatusOK, toResponse(result))
-}
-
-func handleError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, org.ErrNotFound):
-		httputil.WriteProblem(w, http.StatusNotFound, "Not Found", err.Error())
-	case errors.Is(err, org.ErrDomainExists), errors.Is(err, org.ErrWorkspaceExists):
-		httputil.WriteProblem(w, http.StatusConflict, "Conflict", err.Error())
-	case errors.Is(err, domain.ErrValidation):
-		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Unprocessable Entity", err.Error())
-	default:
-		httputil.WriteProblem(w, http.StatusInternalServerError, "Internal Server Error", "an unexpected error occurred")
-	}
 }

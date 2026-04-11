@@ -65,7 +65,7 @@ func NewRouter(bootstrapHandler BootstrapHandler, authHandler *auth.Handler, org
 		r.Use(middleware.RateLimit(5, time.Minute)) // 5 requests per minute
 		r.Post("/login", authHandler.Login)
 		r.With(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret})).Get("/session", authHandler.Session)
-		r.With(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret})).Post("/switch-organization", authHandler.SwitchOrganization)
+		r.With(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret})).Put("/session", authHandler.UpdateSession)
 	})
 
 	// Bootstrap with stricter rate limiting

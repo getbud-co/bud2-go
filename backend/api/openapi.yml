@@ -68,10 +68,8 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
-
-  /auth/switch-organization:
-    post:
-      summary: Switch active organization
+    put:
+      summary: Update active organization in session
       tags: [Auth]
       security:
         - bearerAuth: []
@@ -80,7 +78,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SwitchOrganizationRequest"
+              $ref: "#/components/schemas/UpdateSessionRequest"
       responses:
         "200":
           description: Updated authenticated session
@@ -295,7 +293,7 @@ components:
         email: { type: string, format: email }
         password: { type: string, minLength: 6 }
 
-    SwitchOrganizationRequest:
+    UpdateSessionRequest:
       type: object
       required: [organization_id]
       properties:

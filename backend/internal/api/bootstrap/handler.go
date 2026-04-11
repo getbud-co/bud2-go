@@ -3,39 +3,12 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/dsbraz/bud2/backend/internal/api/httputil"
 	"github.com/dsbraz/bud2/backend/internal/api/validator"
 	appbootstrap "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
 )
-
-type createRequest struct {
-	OrganizationName      string `json:"organization_name" validate:"required,min=2,max=100"`
-	OrganizationDomain    string `json:"organization_domain" validate:"required,email"`
-	OrganizationWorkspace string `json:"organization_workspace" validate:"required,min=2,max=100,slug"`
-	AdminName             string `json:"admin_name" validate:"required,min=2,max=100"`
-	AdminEmail            string `json:"admin_email" validate:"required,email"`
-	AdminPassword         string `json:"admin_password" validate:"required,min=8"`
-}
-
-type Response struct {
-	AccessToken  string `json:"access_token"`
-	TokenType    string `json:"token_type"`
-	Organization struct {
-		ID        string `json:"id"`
-		Name      string `json:"name"`
-		Domain    string `json:"domain"`
-		Workspace string `json:"workspace"`
-	} `json:"organization"`
-	Admin struct {
-		ID            string `json:"id"`
-		Name          string `json:"name"`
-		Email         string `json:"email"`
-		IsSystemAdmin bool   `json:"is_system_admin"`
-	} `json:"admin"`
-}
 
 type bootstrapUseCase interface {
 	Execute(ctx context.Context, cmd appbootstrap.Command) (*appbootstrap.Result, error)
@@ -56,39 +29,19 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate request format
 	if err := validator.Validate(req); err != nil {
 		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Validation Error", validator.FormatValidationErrors(err))
 		return
 	}
 
-	result, err := h.uc.Execute(r.Context(), appbootstrap.Command{
-		OrganizationName:      req.OrganizationName,
-		OrganizationDomain:    req.OrganizationDomain,
-		OrganizationWorkspace: req.OrganizationWorkspace,
-		AdminName:             req.AdminName,
-		AdminEmail:            req.AdminEmail,
-		AdminPassword:         req.AdminPassword,
-	})
+	result, err := h.uc.Execute(r.Context(), req.toCommand())
 	if err != nil {
-		switch {
-		case errors.Is(err, appbootstrap.ErrAlreadyBootstrapped):
-			httputil.WriteProblem(w, http.StatusConflict, "Conflict", err.Error())
-		default:
+		if !handleError(w, err) {
 			httputil.WriteProblem(w, http.StatusInternalServerError, "Internal Server Error", "an unexpected error occurred")
 		}
 		return
 	}
 
-	resp := Response{AccessToken: result.AccessToken, TokenType: "Bearer"}
-	resp.Organization.ID = result.Organization.ID.String()
-	resp.Organization.Name = result.Organization.Name
-	resp.Organization.Domain = result.Organization.Domain
-	resp.Organization.Workspace = result.Organization.Workspace
-	resp.Admin.ID = result.Admin.ID.String()
-	resp.Admin.Name = result.Admin.Name
-	resp.Admin.Email = result.Admin.Email
-	resp.Admin.IsSystemAdmin = result.Admin.IsSystemAdmin
-
+	resp := createBootstrapResponse(result)
 	httputil.WriteJSON(w, http.StatusCreated, resp)
 }
