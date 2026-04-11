@@ -139,9 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const payload = (await request(
-      "/auth/switch-organization",
+      "/auth/session",
       {
-        method: "POST",
+        method: "PUT",
         body: JSON.stringify({ organization_id: organizationId }),
       },
       token,

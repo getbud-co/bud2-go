@@ -158,25 +158,8 @@ export interface paths {
                 };
             };
         };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/switch-organization": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Switch active organization */
-        post: {
+        /** Update active organization in session */
+        put: {
             parameters: {
                 query?: never;
                 header?: never;
@@ -185,7 +168,7 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["SwitchOrganizationRequest"];
+                    "application/json": components["schemas"]["UpdateSessionRequest"];
                 };
             };
             responses: {
@@ -200,6 +183,7 @@ export interface paths {
                 };
             };
         };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -530,7 +514,7 @@ export interface components {
             email: string;
             password: string;
         };
-        SwitchOrganizationRequest: {
+        UpdateSessionRequest: {
             /** Format: uuid */
             organization_id: string;
         };
