@@ -9,7 +9,7 @@ O sqlc pode operar em dois modos para validar queries: `database` (conecta ao ba
 
 ## Decisão
 
-Adotar **sqlc no modo `database`** com **PostgreSQL 16**.
+Adotar **sqlc no modo `database`** com **PostgreSQL 18**.
 
 - `sqlc.yml` aponta para o schema real gerado pelas migrations.
 - O modo `database` garante que as queries são validadas contra o schema real — pega erros de tipo, colunas inexistentes e funções inválidas em compile time.
@@ -77,4 +77,4 @@ sqlc-gen:
 ## Referências
 
 - https://sqlc.dev/docs/reference/config
-- PostgreSQL 16: https://www.postgresql.org/docs/16/
+- PostgreSQL 18: https://www.postgresql.org/docs/18/

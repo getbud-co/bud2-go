@@ -144,6 +144,6 @@ Trade-off: o `SET LOCAL` exige contexto de transação e adiciona um round-trip.
 
 - Martin, Robert C. *Clean Architecture: A Craftsman's Guide to Software Structure and Design*. Prentice Hall, 2017. — Capítulo sobre independência de mecanismos de entrega e persistência.
 - Evans, Eric. *Domain-Driven Design: Tackling Complexity in the Heart of Software*. Addison-Wesley, 2003. — Value Objects como tipos nomeados com identidade semântica.
-- PostgreSQL Documentation. *Row Security Policies*. https://www.postgresql.org/docs/16/ddl-rowsecurity.html
+- PostgreSQL Documentation. *Row Security Policies*. https://www.postgresql.org/docs/18/ddl-rowsecurity.html
 - sqlc Documentation. *Generating code from SQL*. https://docs.sqlc.dev/
 - Gormley, Rob. *Multi-Tenant SaaS with PostgreSQL*. Padrão da indústria documentado em Citus/PostgreSQL blogs — row-level isolation como default para SaaS early-stage.
