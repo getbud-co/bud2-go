@@ -123,6 +123,7 @@ Strategy: **row-level isolation** — shared schema, `tenant_id UUID NOT NULL` o
 - App Router with `src/` directory
 - TypeScript strict mode
 - Path alias `@/*` maps to `src/*`
+- Package manager: Yarn classic (`frontend/yarn.lock`); use `yarn` commands in the frontend workspace
 - Components are functional with TypeScript props
 - API client at `src/lib/api.ts` — all backend calls go through it
 - Types at `src/lib/types.ts` — generated from OpenAPI spec, never written manually
@@ -133,6 +134,7 @@ Strategy: **row-level isolation** — shared schema, `tenant_id UUID NOT NULL` o
 - Frontend runs on port 3000 by default
 - `make dev` to run both services locally
 - `make compose-up` to run via Docker Compose
+- Frontend install/build/lint commands use Yarn in the `frontend/` workspace
 - `make sqlc-gen` after changing SQL queries or migrations
 - `make api-types` after changing the OpenAPI spec
 - `make migrate-up` to run database migrations

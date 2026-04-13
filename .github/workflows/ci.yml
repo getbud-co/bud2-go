@@ -14,23 +14,25 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           working-directory: backend
+          install-mode: goinstall
+          version: latest
 
       - name: Test
         run: go test ./... -v -race -coverprofile=coverage.out
 
       - name: Build
-        run: go build ./cmd/api
+        run: go build -o bin/api ./cmd/api
 
   frontend:
     name: Frontend
@@ -39,19 +41,22 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          node-version: "24"
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install
-        run: npm ci
+        run: yarn install --frozen-lockfile
 
       - name: Lint
-        run: npm run lint
+        run: yarn lint
 
       - name: Build
-        run: npm run build
+        run: yarn build
