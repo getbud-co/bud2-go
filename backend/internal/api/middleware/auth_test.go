@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
-	"github.com/dsbraz/bud2/backend/internal/test/mocks"
+	"github.com/getbud-co/bud2/backend/internal/domain"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
+	"github.com/getbud-co/bud2/backend/internal/test/mocks"
 )
 
 func TestAuthMiddleware_ValidTokenWithActiveOrganization(t *testing.T) {

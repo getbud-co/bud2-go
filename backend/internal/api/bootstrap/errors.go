@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dsbraz/bud2/backend/internal/api/httputil"
-	appbootstrap "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
+	"github.com/getbud-co/bud2/backend/internal/api/httputil"
+	appbootstrap "github.com/getbud-co/bud2/backend/internal/app/bootstrap"
 )
 
 func handleError(w http.ResponseWriter, err error) bool {

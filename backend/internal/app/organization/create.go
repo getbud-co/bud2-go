@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
-	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
+	org "github.com/getbud-co/bud2/backend/internal/domain/organization"
 )
 
 type CreateCommand struct {

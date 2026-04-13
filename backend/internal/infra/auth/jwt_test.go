@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/getbud-co/bud2/backend/internal/domain"
 )
 
 func TestTokenIssuer_IssueToken_WithActiveOrganization(t *testing.T) {

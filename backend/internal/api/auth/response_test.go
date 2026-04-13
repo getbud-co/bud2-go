@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
+	appauth "github.com/getbud-co/bud2/backend/internal/app/auth"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
 )
 
 func TestResponseFromSession(t *testing.T) {

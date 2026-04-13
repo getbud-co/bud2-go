@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/dsbraz/bud2/backend/internal/api/httputil"
-	"github.com/dsbraz/bud2/backend/internal/api/validator"
-	appbootstrap "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
+	"github.com/getbud-co/bud2/backend/internal/api/httputil"
+	"github.com/getbud-co/bud2/backend/internal/api/validator"
+	appbootstrap "github.com/getbud-co/bud2/backend/internal/app/bootstrap"
 )
 
 type bootstrapUseCase interface {

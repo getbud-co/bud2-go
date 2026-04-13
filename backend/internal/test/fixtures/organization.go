@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dsbraz/bud2/backend/internal/domain/organization"
+	"github.com/getbud-co/bud2/backend/internal/domain/organization"
 )
 
 func NewOrganization() *organization.Organization {

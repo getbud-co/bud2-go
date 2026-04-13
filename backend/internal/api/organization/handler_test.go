@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	apporg "github.com/dsbraz/bud2/backend/internal/app/organization"
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
+	apporg "github.com/getbud-co/bud2/backend/internal/app/organization"
+	"github.com/getbud-co/bud2/backend/internal/domain"
+	org "github.com/getbud-co/bud2/backend/internal/domain/organization"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
 )
 
 type mockCreateUseCase struct{ mock.Mock }

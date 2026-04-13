@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
+	appauth "github.com/getbud-co/bud2/backend/internal/app/auth"
+	"github.com/getbud-co/bud2/backend/internal/domain"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
 )
 
 type mockLoginUseCase struct{ mock.Mock }

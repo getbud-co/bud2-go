@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"time"
 
-	domainauth "github.com/dsbraz/bud2/backend/internal/domain/auth"
-	"github.com/dsbraz/bud2/backend/internal/domain/membership"
-	"github.com/dsbraz/bud2/backend/internal/domain/organization"
-	"github.com/dsbraz/bud2/backend/internal/domain/user"
+	domainauth "github.com/getbud-co/bud2/backend/internal/domain/auth"
+	"github.com/getbud-co/bud2/backend/internal/domain/membership"
+	"github.com/getbud-co/bud2/backend/internal/domain/organization"
+	"github.com/getbud-co/bud2/backend/internal/domain/user"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/getbud-co/bud2/backend/internal/domain"
 )
 
 type GetSessionUseCase struct {

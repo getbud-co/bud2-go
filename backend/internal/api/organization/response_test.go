@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
+	org "github.com/getbud-co/bud2/backend/internal/domain/organization"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
 )
 
 func TestToResponse(t *testing.T) {

@@ -1,6 +1,6 @@
 package auth
 
-import appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
+import appauth "github.com/getbud-co/bud2/backend/internal/app/auth"
 
 type authResponse struct {
 	AccessToken        string                 `json:"access_token,omitempty"`

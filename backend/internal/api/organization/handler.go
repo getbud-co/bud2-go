@@ -9,10 +9,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/dsbraz/bud2/backend/internal/api/httputil"
-	"github.com/dsbraz/bud2/backend/internal/api/validator"
-	apporg "github.com/dsbraz/bud2/backend/internal/app/organization"
-	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
+	"github.com/getbud-co/bud2/backend/internal/api/httputil"
+	"github.com/getbud-co/bud2/backend/internal/api/validator"
+	apporg "github.com/getbud-co/bud2/backend/internal/app/organization"
+	org "github.com/getbud-co/bud2/backend/internal/domain/organization"
 )
 
 type createUseCase interface {

@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dsbraz/bud2/backend/internal/api/httputil"
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
+	"github.com/getbud-co/bud2/backend/internal/api/httputil"
+	"github.com/getbud-co/bud2/backend/internal/domain"
+	org "github.com/getbud-co/bud2/backend/internal/domain/organization"
 )
 
 func TestHandleError(t *testing.T) {

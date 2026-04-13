@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/getbud-co/bud2/backend/internal/domain"
 )
 
 type responseRecorder struct {

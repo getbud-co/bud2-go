@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/getbud-co/bud2/backend/internal/domain"
 )
 
 func TestRole_IsValid(t *testing.T) {

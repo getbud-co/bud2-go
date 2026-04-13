@@ -3,7 +3,7 @@ package auth
 import (
 	"github.com/google/uuid"
 
-	appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
+	appauth "github.com/getbud-co/bud2/backend/internal/app/auth"
 )
 
 type loginRequest struct {

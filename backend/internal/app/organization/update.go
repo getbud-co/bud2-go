@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
+	org "github.com/getbud-co/bud2/backend/internal/domain/organization"
 )
 
 type UpdateCommand struct {

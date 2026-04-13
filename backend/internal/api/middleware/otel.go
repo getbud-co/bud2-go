@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var tracer = otel.Tracer("github.com/dsbraz/bud2/backend")
+var tracer = otel.Tracer("github.com/getbud-co/bud2/backend")
 
 func TraceMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

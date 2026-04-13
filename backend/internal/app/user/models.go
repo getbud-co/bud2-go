@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dsbraz/bud2/backend/internal/domain/membership"
-	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
+	"github.com/getbud-co/bud2/backend/internal/domain/membership"
+	usr "github.com/getbud-co/bud2/backend/internal/domain/user"
 )
 
 type Member struct {

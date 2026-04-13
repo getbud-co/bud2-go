@@ -7,10 +7,10 @@ import (
 
 	"github.com/google/uuid"
 
-	apptx "github.com/dsbraz/bud2/backend/internal/app/tx"
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	"github.com/dsbraz/bud2/backend/internal/domain/membership"
-	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
+	apptx "github.com/getbud-co/bud2/backend/internal/app/tx"
+	"github.com/getbud-co/bud2/backend/internal/domain"
+	"github.com/getbud-co/bud2/backend/internal/domain/membership"
+	usr "github.com/getbud-co/bud2/backend/internal/domain/user"
 )
 
 type UpdateCommand struct {

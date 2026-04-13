@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/getbud-co/bud2/backend/internal/domain"
 )
 
 type Role string

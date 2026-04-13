@@ -1,4 +1,4 @@
-module github.com/dsbraz/bud2/backend
+module github.com/getbud-co/bud2/backend
 
 go 1.26
 

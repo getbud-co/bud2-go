@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/dsbraz/bud2/backend/internal/domain/membership"
-	"github.com/dsbraz/bud2/backend/internal/domain/organization"
-	"github.com/dsbraz/bud2/backend/internal/domain/user"
-	infraauth "github.com/dsbraz/bud2/backend/internal/infra/auth"
-	"github.com/dsbraz/bud2/backend/internal/test/mocks"
-	"github.com/dsbraz/bud2/backend/internal/test/testutil"
+	"github.com/getbud-co/bud2/backend/internal/domain/membership"
+	"github.com/getbud-co/bud2/backend/internal/domain/organization"
+	"github.com/getbud-co/bud2/backend/internal/domain/user"
+	infraauth "github.com/getbud-co/bud2/backend/internal/infra/auth"
+	"github.com/getbud-co/bud2/backend/internal/test/mocks"
+	"github.com/getbud-co/bud2/backend/internal/test/testutil"
 )
 
 type mockMembershipRepository struct{ mock.Mock }

@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/dsbraz/bud2/backend/internal/domain/membership"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
-	"github.com/dsbraz/bud2/backend/internal/test/mocks"
-	"github.com/dsbraz/bud2/backend/internal/test/testutil"
+	"github.com/getbud-co/bud2/backend/internal/domain/membership"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
+	"github.com/getbud-co/bud2/backend/internal/test/mocks"
+	"github.com/getbud-co/bud2/backend/internal/test/testutil"
 )
 
 func TestListUseCase_Execute_Success(t *testing.T) {
