@@ -28,7 +28,7 @@ interface OrganizationContextValue {
   activeOrganization: CompanyProfile | null;
   activeOrgId: string | null;
   isLoading: boolean;
-  setActiveOrg: (orgId: string) => void;
+  setActiveOrg: (orgId: string) => Promise<void>;
 }
 
 const OrganizationContext = createContext<OrganizationContextValue | null>(
@@ -88,8 +88,21 @@ export function OrganizationProvider({
   }, [organizations]);
 
   const setActiveOrg = useCallback(
-    (orgId: string) => {
+    async (orgId: string) => {
       if (!organizations.some((org) => org.id === orgId)) return;
+
+      const response = await fetch("/api/auth/session", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ organization_id: orgId }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update active organization");
+      }
+
       Cookies.set(COOKIE_NAME, orgId, COOKIE_OPTIONS);
       setActiveOrgId(orgId);
     },

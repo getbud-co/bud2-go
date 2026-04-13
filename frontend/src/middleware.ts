@@ -1,39 +1,38 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function middleware(_request: NextRequest) {
-  return NextResponse.next();
+const ACCESS_TOKEN_COOKIE = "bud_access_token";
+
+function isPublicPath(pathname: string): boolean {
+  return (
+    pathname === "/login" ||
+    pathname.startsWith("/api/auth/login") ||
+    pathname.startsWith("/api/auth/logout") ||
+    pathname.startsWith("/api/o/")
+  );
 }
 
-// ── Auth middleware (disabled) ──────────────────────────────────────────────
-// import { auth0 } from "./lib/auth0";
-/*
-export async function middleware(request: NextRequest) {
-  
-  const authResponse = await auth0.middleware(request);
+export function middleware(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
 
-  if (
-    request.nextUrl.pathname.startsWith("/auth") ||
-    request.nextUrl.pathname.startsWith("/invite") ||
-    request.nextUrl.pathname.startsWith("/api/o/")
-  ) {
-    return authResponse;
+  if (isPublicPath(pathname)) {
+    return NextResponse.next();
   }
 
-  const session = await auth0.getSession(request);
-
-  if (!session) {
-    const loginUrl = new URL("/auth/login", request.url);
-    loginUrl.searchParams.set("returnTo", request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
+  const token = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+  if (token) {
+    return NextResponse.next();
   }
 
-  return authResponse;
-  
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ detail: "Unauthorized" }, { status: 401 });
+  }
+
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("returnTo", `${pathname}${search}`);
+  return NextResponse.redirect(loginUrl);
 }
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };
-*/

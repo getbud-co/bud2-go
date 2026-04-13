@@ -1,81 +1,42 @@
 # Bud 2.0 Web Application
 
-> web application for bud 2.0 project
+Frontend em Next.js 15 para o Bud 2.0.
 
-## 🚀 Requisitos
+## Requisitos
 
-```
- Node @22.14.0
- Yarn @1.22.22
-```
+- Node 24.x
+- Yarn 1.22.x
 
-## Tech Stack
+## Ambiente
 
-- **Framework**: Next.js 15 (App Router)
-- **Language**: TypeScript
-- **Auth**: dependências preparadas para NextAuth.js
-- **Testing**: Vitest + Testing Library (planejado)
-
-## Estrutura
-
-```
-frontend/
-├── src/
-│   └── app/               # App Router (layout e páginas)
-│       ├── layout.tsx
-│       └── page.tsx
-├── public/                # Static assets
-├── AGENTS.md              # Contrato local para agentes
-├── package.json
-├── tsconfig.json
-├── next.config.ts
-└── Dockerfile             # Build + runtime Node.js
-```
-
-## 🚀 Instalando Web Application
-
-Para instalar o Web Application, siga estas etapas:
-
-```
- yarn install 
-```
-
-## ☕ Usando Web Application
-
-Para usar Web Application, siga estas etapas:
-
-```
- yarn dev
-```
-
-## ☕ Usando Docker
-
-Para rodar a imagem da aplicação, é necessário adicionar o arquivo .env como no exemplo:
-
-```
- docker run -d -p 3000:3000 --env-file .env bud-web:latest
-```
-
-
-## 📝 Licença
-
-### Testes (planejado)
+Copie `frontend/.env.example` para `frontend/.env` e ajuste:
 
 ```bash
-npm test
+BUD_API_URL=http://localhost:8080
+NEXT_PUBLIC_CHECKIN_SYNC_URL=
 ```
 
-## API Client
+`BUD_API_URL` é usado pelas rotas server-side do frontend para autenticar e consumir a API Go.
 
-O frontend usa `NEXT_PUBLIC_API_URL` para consumir a API do backend.
-
-Futuramente, pode ser gerado automaticamente a partir do OpenAPI com:
+## Desenvolvimento
 
 ```bash
-npx openapi-typescript http://localhost:8082/openapi/v1.json -o src/types/api.ts
-npx openapi-fetch -i src/types/api.ts
+yarn install
+yarn lint
+yarn build
 ```
 
-## Deploy
+## Autenticação
 
-Ver `../DEPLOY.md` para instruções de deploy no GCP Cloud Run.
+- O frontend usa o fluxo de JWT do backend.
+- Login chama `POST /auth/login`.
+- Sessão corrente usa `GET /auth/session`.
+- Troca de organização ativa usa `PUT /auth/session`.
+- O token fica em cookie `HttpOnly` gerenciado pelo frontend.
+
+## Docker
+
+```bash
+docker build -t bud-web .
+docker run -p 3000:3000 --env-file .env bud-web
+```

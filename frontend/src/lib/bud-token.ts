@@ -1,123 +1,130 @@
 import { cookies } from "next/headers";
 
-const BUD_ADMIN_EMAIL = "admin@getbud.co";
-export const BUD_TOKEN_COOKIE = "bud_token";
-export const BUD_SESSION_META_COOKIE = "bud_session_meta";
+export const BUD_ACCESS_TOKEN_COOKIE = "bud_access_token";
+const BUD_SESSION_COOKIE = "bud_auth_session";
 
-// Renew the token 60 seconds before it actually expires
-const TOKEN_REFRESH_BUFFER_SECONDS = 60;
-
-export interface SessionMeta {
+export interface BudUser {
+  id: string;
+  name: string;
   email: string;
-  displayName: string;
-  employeeId: string;
-  organizationId: string;
+  status: string;
+  is_system_admin: boolean;
 }
 
-interface SessionPayload {
-  token: string;
-  email: string;
-  displayName: string;
-  employeeId: string;
-  organizationId: string;
+export interface BudOrganization {
+  id: string;
+  name: string;
+  domain: string;
+  workspace: string;
+  status: string;
+  membership_role?: string;
+  membership_status?: string;
 }
 
-function getJwtExpiry(token: string): number | null {
-  try {
-    const payload = token.split(".")[1];
-    if (!payload) return null;
-    const decoded = JSON.parse(
-      Buffer.from(payload, "base64url").toString("utf8"),
-    ) as Record<string, unknown>;
-    return typeof decoded.exp === "number" ? decoded.exp : null;
-  } catch {
-    return null;
+export interface BudSession {
+  access_token?: string;
+  token_type?: "Bearer";
+  user: BudUser;
+  active_organization?: BudOrganization | null;
+  organizations: BudOrganization[];
+}
+
+export class UnauthorizedError extends Error {
+  constructor(message = "Unauthorized") {
+    super(message);
+    this.name = "UnauthorizedError";
   }
 }
 
-function isTokenValid(token: string): boolean {
-  const exp = getJwtExpiry(token);
-  if (exp === null) return false;
-  return Date.now() / 1000 < exp - TOKEN_REFRESH_BUFFER_SECONDS;
-}
-
-async function fetchSession(): Promise<SessionPayload> {
-  const apiUrl = process.env.BUD_API_URL;
-  const loginResponse = await fetch(`${apiUrl}/api/sessions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: BUD_ADMIN_EMAIL }),
-  });
-
-  if (!loginResponse.ok) {
-    throw new Error(
-      `Failed to authenticate with Bud API: ${loginResponse.status}`,
-    );
-  }
-
-  return (await loginResponse.json()) as SessionPayload;
-}
-
-function cookieOptions(exp: number | null) {
+function getCookieOptions() {
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
-    ...(exp ? { expires: new Date(exp * 1000) } : {}),
   };
 }
 
-/**
- * Returns a valid Bearer token, reading from the `bud_token` cookie when
- * possible and only hitting /api/sessions when the stored token is missing
- * or about to expire.
- */
 export async function getBudToken(): Promise<string> {
   const cookieStore = await cookies();
-  const stored = cookieStore.get(BUD_TOKEN_COOKIE)?.value;
+  const token = cookieStore.get(BUD_ACCESS_TOKEN_COOKIE)?.value;
 
-  if (stored && isTokenValid(stored)) {
-    return stored;
+  if (!token) {
+    throw new UnauthorizedError();
   }
 
-  const session = await fetchSession();
-  const exp = getJwtExpiry(session.token);
-  const opts = cookieOptions(exp);
-
-  cookieStore.set(BUD_TOKEN_COOKIE, session.token, opts);
-  cookieStore.set(
-    BUD_SESSION_META_COOKIE,
-    JSON.stringify({
-      email: session.email,
-      displayName: session.displayName,
-      employeeId: session.employeeId,
-      organizationId: session.organizationId,
-    } satisfies SessionMeta),
-    opts,
-  );
-
-  return session.token;
+  return token;
 }
 
-/**
- * Returns the session metadata saved alongside the token.
- * Triggers a token refresh (and meta save) if the cookie is missing.
- */
-export async function getBudSessionMeta(): Promise<SessionMeta> {
+export async function saveBudSession(session: BudSession): Promise<void> {
   const cookieStore = await cookies();
-  const raw = cookieStore.get(BUD_SESSION_META_COOKIE)?.value;
+  const token = session.access_token;
 
-  if (raw) {
-    return JSON.parse(raw) as SessionMeta;
+  if (!token) {
+    throw new Error("Missing access token in Bud session");
   }
 
-  // Token might be stale — re-auth to repopulate both cookies.
-  await getBudToken();
+  cookieStore.set(BUD_ACCESS_TOKEN_COOKIE, token, getCookieOptions());
+  cookieStore.set(
+    BUD_SESSION_COOKIE,
+    JSON.stringify({
+      user: session.user,
+      active_organization: session.active_organization ?? null,
+      organizations: session.organizations,
+    } satisfies Omit<BudSession, "access_token" | "token_type">),
+    getCookieOptions(),
+  );
+}
 
-  const refreshed = cookieStore.get(BUD_SESSION_META_COOKIE)?.value;
-  if (!refreshed) {
-    throw new Error("Failed to populate session metadata");
+export async function clearBudSession(): Promise<void> {
+  const cookieStore = await cookies();
+
+  cookieStore.delete(BUD_ACCESS_TOKEN_COOKIE);
+  cookieStore.delete(BUD_SESSION_COOKIE);
+}
+
+export async function getBudSession(): Promise<BudSession> {
+  const cookieStore = await cookies();
+  const rawSession = cookieStore.get(BUD_SESSION_COOKIE)?.value;
+  const token = cookieStore.get(BUD_ACCESS_TOKEN_COOKIE)?.value;
+
+  if (!token) {
+    throw new UnauthorizedError();
   }
-  return JSON.parse(refreshed) as SessionMeta;
+
+  if (rawSession) {
+    const session = JSON.parse(rawSession) as Omit<
+      BudSession,
+      "access_token" | "token_type"
+    >;
+
+    return {
+      ...session,
+      access_token: token,
+      token_type: "Bearer",
+    };
+  }
+
+  const apiUrl = process.env.BUD_API_URL;
+  const response = await fetch(`${apiUrl}/auth/session`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    cache: "no-store",
+  });
+
+  if (response.status === 401) {
+    await clearBudSession();
+    throw new UnauthorizedError();
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch Bud session: ${response.status}`);
+  }
+
+  const session = (await response.json()) as BudSession;
+  session.access_token = token;
+  session.token_type = "Bearer";
+  await saveBudSession(session);
+  return session;
 }

@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import type { Cycle } from "@/types";
 import { CycleTableRow } from "../components/CycleTableRow";
 
-vi.mock("@mdonangelo/bud-ds", () => ({
+vi.mock("@getbud-co/buds", () => ({
   TableRow: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="table-row">{children}</div>
   ),

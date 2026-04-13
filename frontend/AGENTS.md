@@ -36,8 +36,8 @@ This file supplements `/AGENTS.md` with frontend-specific rules.
 Run from `frontend/` when relevant:
 
 ```bash
-npm run type-check
-npm run build
+yarn lint
+yarn build
 ```
 
 If more validation is needed in the future, add it to `package.json` first and then document it here.

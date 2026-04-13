@@ -11,6 +11,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    exclude: ["**/node_modules/**", "**/packages/bud2-design-system/**"],
   },
   resolve: {
     alias: {

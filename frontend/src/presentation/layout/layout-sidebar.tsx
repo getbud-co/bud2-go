@@ -29,6 +29,7 @@ import {
 import { BudLogo, BudLogoMark } from "@/components/BudLogo";
 import { PlanSelectionModal } from "@/components/PlanSelectionModal";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useLoggedUser } from "@/contexts/LoggedUserContext";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 interface AppSidebarProps {
@@ -55,6 +56,7 @@ export function AppSidebar({
   const searchParams = useSearchParams();
 
   const { organizations, activeOrganization, setActiveOrg } = useOrganization();
+  const { loggedUser } = useLoggedUser();
 
   const activeViewId = searchParams.get("view");
 
@@ -81,8 +83,8 @@ export function AppSidebar({
       id: org.id,
       label: org.label,
       image: org.image,
-      onClick: () => {
-        setActiveOrg(org.id);
+      onClick: async () => {
+        await setActiveOrg(org.id);
         setOrgOpen(false);
       },
     })),
@@ -102,6 +104,14 @@ export function AppSidebar({
     return pathname === path || pathname.startsWith(path + "/");
   }
 
+  async function handleUserMenuClick(id: string) {
+    if (id !== "logout") return;
+
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.replace("/login");
+    router.refresh();
+  }
+
   const activeSection = "/" + (pathname.split("/")[1] ?? "");
 
   return (
@@ -117,13 +127,13 @@ export function AppSidebar({
             <BudLogoMark
               height={22}
               style={{ cursor: "pointer" }}
-              onClick={() => router.push("/home")}
+              onClick={() => router.push("/")}
             />
           ) : (
             <BudLogo
               height={28}
               style={{ cursor: "pointer" }}
-              onClick={() => router.push("/home")}
+              onClick={() => router.push("/")}
             />
           )}
         </SidebarHeader>
@@ -272,13 +282,16 @@ export function AppSidebar({
         <SidebarFooter>
           <SidebarUser
             ref={userRef}
-            name="Maria Soares"
-            role="HR Manager"
-            avatar={<Avatar initials="MS" size="sm" />}
+            name={loggedUser?.fullName ?? "Usuário"}
+            role={loggedUser?.email ?? ""}
+            avatar={<Avatar initials={loggedUser?.initials ?? "U"} size="sm" />}
             onClick={() => setUserOpen((v) => !v)}
           />
           <Popover
-            items={USER_MENU}
+            items={USER_MENU.map((item) => ({
+              ...item,
+              onClick: () => void handleUserMenuClick(item.id),
+            }))}
             open={userOpen}
             onClose={() => setUserOpen(false)}
             anchorRef={userRef}

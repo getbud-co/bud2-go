@@ -1,3 +1,5 @@
+import type { Indicator } from "./indicator";
+
 export type ConfidenceLevel =
   | "high"
   | "medium"

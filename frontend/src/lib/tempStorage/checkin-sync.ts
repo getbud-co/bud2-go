@@ -14,7 +14,7 @@ interface SyncCheckInResult {
 const REQUEST_TIMEOUT_MS = 10000;
 
 function getSyncEndpoint(): string | null {
-  const raw = import.meta.env.VITE_CHECKIN_SYNC_URL as string | undefined;
+  const raw = process.env.NEXT_PUBLIC_CHECKIN_SYNC_URL;
   if (!raw) return null;
   const trimmed = raw.trim();
   return trimmed.length > 0 ? trimmed : null;
@@ -71,8 +71,8 @@ export async function syncCheckInOutboxOperation(
 
   const endpoint = getSyncEndpoint();
   if (!endpoint) {
-    if (!import.meta.env.DEV) {
-      throw new Error("VITE_CHECKIN_SYNC_URL nao configurada");
+    if (process.env.NODE_ENV !== "development") {
+      throw new Error("NEXT_PUBLIC_CHECKIN_SYNC_URL nao configurada");
     }
     await wait(140);
     return { syncedAt: new Date().toISOString() };

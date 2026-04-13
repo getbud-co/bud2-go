@@ -29,7 +29,7 @@ vi.mock("@/hooks/useDataTable", () => ({
   }),
 }));
 
-vi.mock("@mdonangelo/bud-ds", () => ({
+vi.mock("@getbud-co/buds", () => ({
   Table: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   TableContent: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
@@ -58,7 +58,19 @@ vi.mock("@mdonangelo/bud-ds", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@phosphor-icons/react", () => ({ Trash: () => null }));
+vi.mock("@phosphor-icons/react", () => {
+  const MockIcon = () => null;
+  return new Proxy(
+    {
+      Trash: MockIcon,
+    },
+    {
+      get() {
+        return MockIcon;
+      },
+    },
+  );
+});
 
 // ─── Mocks dos sub-componentes ───
 

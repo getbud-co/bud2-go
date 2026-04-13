@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 
 import { SidebarContext } from "@/contexts/SidebarContext";
 import { SavedViewsProvider } from "@/contexts/SavedViewsContext";
@@ -27,6 +28,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const pathname = usePathname();
   const isMobile = useIsMobile();
   const [collapsed, setCollapsed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -35,6 +37,10 @@ export function AppLayout({ children }: AppLayoutProps) {
     () => ({ isMobile, openSidebar: () => setSidebarOpen(true) }),
     [isMobile],
   );
+
+  if (pathname === "/login") {
+    return <main className="min-h-dvh">{children}</main>;
+  }
 
   return (
     <SavedViewsProvider>

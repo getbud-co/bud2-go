@@ -10,19 +10,19 @@ dev-backend:
 	cd backend && go run ./cmd/api
 
 dev-frontend:
-	cd frontend && npm run dev
+	cd frontend && yarn dev
 
 build:
 	cd backend && go build -o bin/api ./cmd/api
-	cd frontend && npm run build
+	cd frontend && yarn build
 
 test:
 	cd backend && go test ./... -v
-	cd frontend && npm run lint
+	cd frontend && yarn lint
 
 lint:
 	cd backend && golangci-lint run
-	cd frontend && npm run lint
+	cd frontend && yarn lint
 
 clean:
 	rm -rf backend/bin

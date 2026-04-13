@@ -12,10 +12,10 @@ import { ActivitiesCard } from "./components/ActivitiesCard";
 import { TeamHealthCard } from "./components/TeamHealthCard";
 import { WidgetBuilder } from "./components/WidgetBuilder";
 import { useHomeMissionReadModel } from "./hooks/useHomeMissionReadModel";
-import { useUser } from "@auth0/nextjs-auth0";
+import { useLoggedUser } from "@/contexts/LoggedUserContext";
 
 export function HomeComponent() {
-  const { user } = useUser();
+  const { loggedUser } = useLoggedUser();
   const greeting = getGreeting();
 
   const readModel = useHomeMissionReadModel();
@@ -24,7 +24,7 @@ export function HomeComponent() {
 
   return (
     <div className="flex flex-col gap-6 w-full">
-      <PageHeader title={`${greeting}, ${user?.name}!`}>
+      <PageHeader title={`${greeting}, ${loggedUser?.fullName ?? "usuário"}!`}>
         <Tooltip content="Check-in semanal: 7 semanas consecutivas. Próximo badge: 12 semanas (faltam 5)">
           <Badge color="orange" size="sm" leftIcon={Fire}>
             7 sem.

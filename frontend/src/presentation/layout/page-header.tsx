@@ -38,7 +38,7 @@ const COMMAND_GROUPS: CommandGroup[] = [
   {
     label: "Navegação",
     items: [
-      { id: "/home", label: "Início", icon: House },
+      { id: "/", label: "Início", icon: House },
       { id: "/missions", label: "Missões", icon: Target },
       { id: "/surveys", label: "Pesquisas", icon: ListChecks },
       { id: "/my-team", label: "Meu Time", icon: Users },

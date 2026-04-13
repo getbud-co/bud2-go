@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import type { Cycle } from "@/types";
 import { CycleFormModal } from "../components/CycleFormModal";
 
-vi.mock("@mdonangelo/bud-ds", () => ({
+vi.mock("@getbud-co/buds", () => ({
   Modal: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? <div data-testid="modal">{children}</div> : null,
   ModalHeader: ({ title, onClose }: { title: string; onClose: () => void }) => (

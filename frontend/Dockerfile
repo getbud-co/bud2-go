@@ -1,38 +1,33 @@
-FROM node:20-alpine AS base
+FROM node:24-alpine AS base
 
+FROM base AS deps
 WORKDIR /app
+COPY package.json yarn.lock ./
+RUN corepack enable
+RUN yarn install --frozen-lockfile
 
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source
-COPY src ./src
-COPY public ./public
-COPY next.config.ts tsconfig.json ./
-
-# Build
-RUN npm run build
-
-# Production image
-FROM node:20-alpine AS production
-
+FROM base AS builder
 WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN corepack enable
+RUN yarn build
 
-# Copy package files
-COPY package*.json ./
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
 
-# Install only production dependencies
-RUN npm ci --omit=dev
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
 
-# Copy built app
-COPY --from=base /app/.next ./.next
-COPY --from=base /app/public ./public
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
 
 EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
-ENV NODE_ENV production
-
-CMD ["npm", "start"]
+CMD ["node", "server.js"]

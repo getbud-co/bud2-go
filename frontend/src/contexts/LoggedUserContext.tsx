@@ -13,7 +13,8 @@ export interface LoggedUser {
   email: string;
   fullName: string;
   initials: string;
-  organizationId: string;
+  organizationId: string | null;
+  isSystemAdmin: boolean;
 }
 
 interface LoggedUserContextValue {
