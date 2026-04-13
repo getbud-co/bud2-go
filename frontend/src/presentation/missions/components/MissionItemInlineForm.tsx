@@ -20,7 +20,6 @@ import {
   DotsThree,
   Tag,
   MagnifyingGlass,
-  ChartBar,
   PlusSquare,
 } from "@phosphor-icons/react";
 import {
