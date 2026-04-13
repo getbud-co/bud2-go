@@ -1,163 +1,109 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { AuthProvider, useAuth } from "@/lib/auth";
+import { FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-function LoginPageContent() {
+export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
-  const { login } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
 
     try {
-      await login(email, password);
-      router.push("/");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as
+          | { detail?: string; title?: string }
+          | null;
+        throw new Error(body?.detail ?? body?.title ?? "Falha ao autenticar");
+      }
+
+      router.replace(searchParams.get("returnTo") || "/");
+      router.refresh();
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Falha ao autenticar",
+      );
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
-  };
+  }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "var(--color-bg-secondary)",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "400px",
-          padding: "2rem",
-          backgroundColor: "var(--color-bg-primary)",
-          borderRadius: "8px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: 600,
-            marginBottom: "1.5rem",
-            textAlign: "center",
-          }}
-        >
-          Login
-        </h1>
+    <div className="flex min-h-dvh items-center justify-center bg-[var(--color-caramel-50)] p-6">
+      <div className="w-full max-w-md rounded-3xl border border-[var(--color-caramel-200)] bg-white p-8 shadow-sm">
+        <div className="mb-8 space-y-2">
+          <p className="text-sm font-medium text-[var(--color-orange-600)]">
+            Bud
+          </p>
+          <h1 className="text-3xl font-semibold text-[var(--color-neutral-900)]">
+            Entrar
+          </h1>
+          <p className="text-sm text-[var(--color-neutral-600)]">
+            Use as credenciais do backend para acessar o ambiente.
+          </p>
+        </div>
 
-        {error && (
-          <div
-            style={{
-              padding: "0.75rem",
-              marginBottom: "1rem",
-              backgroundColor: "var(--color-error-100)",
-              color: "var(--color-error-700)",
-              borderRadius: "4px",
-              fontSize: "0.875rem",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: "1rem" }}>
-            <label
-              htmlFor="email"
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontSize: "0.875rem",
-                fontWeight: 500,
-              }}
-            >
-              Email
-            </label>
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-[var(--color-neutral-800)]">
+              E-mail
+            </span>
             <input
-              id="email"
+              className="w-full rounded-2xl border border-[var(--color-caramel-200)] px-4 py-3 outline-none transition focus:border-[var(--color-caramel-700)]"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
               required
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                border: "1px solid var(--color-border)",
-                borderRadius: "4px",
-                fontSize: "1rem",
-              }}
             />
-          </div>
+          </label>
 
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label
-              htmlFor="password"
-              style={{
-                display: "block",
-                marginBottom: "0.5rem",
-                fontSize: "0.875rem",
-                fontWeight: 500,
-              }}
-            >
-              Password
-            </label>
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-[var(--color-neutral-800)]">
+              Senha
+            </span>
             <input
-              id="password"
+              className="w-full rounded-2xl border border-[var(--color-caramel-200)] px-4 py-3 outline-none transition focus:border-[var(--color-caramel-700)]"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
               required
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                border: "1px solid var(--color-border)",
-                borderRadius: "4px",
-                fontSize: "1rem",
-              }}
             />
-          </div>
+          </label>
+
+          {error ? (
+            <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </p>
+          ) : null}
 
           <button
             type="submit"
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: "0.75rem",
-              backgroundColor: "var(--color-primary)",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              fontSize: "1rem",
-              fontWeight: 500,
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.7 : 1,
-            }}
+            disabled={isSubmitting}
+            className="w-full rounded-2xl bg-[var(--color-neutral-950)] px-4 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {loading ? "Logging in..." : "Login"}
+            {isSubmitting ? "Entrando..." : "Entrar"}
           </button>
         </form>
       </div>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <AuthProvider>
-      <LoginPageContent />
-    </AuthProvider>
   );
 }

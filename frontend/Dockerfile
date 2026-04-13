@@ -2,7 +2,7 @@ FROM node:24-alpine AS base
 
 FROM base AS deps
 WORKDIR /app
-COPY .npmrc package.json yarn.lock ./
+COPY package.json yarn.lock ./
 COPY packages/ ./packages/
 RUN corepack enable && yarn install --frozen-lockfile
 
@@ -27,6 +27,6 @@ USER nextjs
 
 EXPOSE 3000
 ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
+ENV HOSTNAME=0.0.0.0
 
 CMD ["node", "server.js"]

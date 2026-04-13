@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { HomeComponent } from "@/presentation/home/page";
 
-export default function Home() {
-  redirect("/settings/users");
+export default function HomePage() {
+  return <HomeComponent />;
 }
