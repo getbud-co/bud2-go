@@ -1,32 +1,38 @@
-FROM node:22-alpine AS base
+FROM node:20-alpine AS base
 
-FROM base AS deps
 WORKDIR /app
-COPY package.json package-lock.json* ./
-COPY packages/ ./packages/
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
 RUN npm ci
 
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# Copy source
+COPY src ./src
+COPY public ./public
+COPY next.config.ts tsconfig.json ./
+
+# Build
 RUN npm run build
 
-FROM base AS runner
+# Production image
+FROM node:20-alpine AS production
+
 WORKDIR /app
-ENV NODE_ENV=production
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Copy package files
+COPY package*.json ./
 
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Install only production dependencies
+RUN npm ci --omit=dev
 
-USER nextjs
+# Copy built app
+COPY --from=base /app/.next ./.next
+COPY --from=base /app/public ./public
 
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+ENV NODE_ENV production
+
+CMD ["npm", "start"]
