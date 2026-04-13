@@ -1,6 +1,7 @@
 {
   "name": "bud2-frontend",
   "version": "0.1.0",
+  "packageManager": "yarn@1.22.22",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -19,7 +20,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.10.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
