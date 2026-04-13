@@ -6,11 +6,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	apptx "github.com/dsbraz/bud2/backend/internal/app/tx"
-	"github.com/dsbraz/bud2/backend/internal/domain/membership"
-	"github.com/dsbraz/bud2/backend/internal/domain/organization"
-	"github.com/dsbraz/bud2/backend/internal/domain/user"
-	"github.com/dsbraz/bud2/backend/internal/infra/postgres/sqlc"
+	apptx "github.com/getbud-co/bud2/backend/internal/app/tx"
+	"github.com/getbud-co/bud2/backend/internal/domain/membership"
+	"github.com/getbud-co/bud2/backend/internal/domain/organization"
+	"github.com/getbud-co/bud2/backend/internal/domain/user"
+	"github.com/getbud-co/bud2/backend/internal/infra/postgres/sqlc"
 )
 
 type txRepositories struct {

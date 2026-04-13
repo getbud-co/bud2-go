@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	appuser "github.com/dsbraz/bud2/backend/internal/app/user"
-	"github.com/dsbraz/bud2/backend/internal/domain/membership"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
+	appuser "github.com/getbud-co/bud2/backend/internal/app/user"
+	"github.com/getbud-co/bud2/backend/internal/domain/membership"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
 )
 
 func TestToResponse(t *testing.T) {

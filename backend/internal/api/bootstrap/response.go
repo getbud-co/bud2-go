@@ -1,6 +1,6 @@
 package bootstrap
 
-import "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
+import "github.com/getbud-co/bud2/backend/internal/app/bootstrap"
 
 type Response struct {
 	AccessToken  string `json:"access_token"`

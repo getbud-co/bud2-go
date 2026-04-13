@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
+	appauth "github.com/getbud-co/bud2/backend/internal/app/auth"
 )
 
 func TestLoginRequestToCommand(t *testing.T) {

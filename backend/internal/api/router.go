@@ -10,11 +10,11 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/dsbraz/bud2/backend/internal/api/auth"
-	"github.com/dsbraz/bud2/backend/internal/api/health"
-	"github.com/dsbraz/bud2/backend/internal/api/middleware"
-	apiorg "github.com/dsbraz/bud2/backend/internal/api/organization"
-	apiuser "github.com/dsbraz/bud2/backend/internal/api/user"
+	"github.com/getbud-co/bud2/backend/internal/api/auth"
+	"github.com/getbud-co/bud2/backend/internal/api/health"
+	"github.com/getbud-co/bud2/backend/internal/api/middleware"
+	apiorg "github.com/getbud-co/bud2/backend/internal/api/organization"
+	apiuser "github.com/getbud-co/bud2/backend/internal/api/user"
 )
 
 type BootstrapHandler interface {

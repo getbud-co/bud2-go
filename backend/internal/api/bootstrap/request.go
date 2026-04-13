@@ -1,6 +1,6 @@
 package bootstrap
 
-import "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
+import "github.com/getbud-co/bud2/backend/internal/app/bootstrap"
 
 type createRequest struct {
 	OrganizationName      string `json:"organization_name" validate:"required,min=2,max=100"`

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dsbraz/bud2/backend/internal/api/httputil"
+	"github.com/getbud-co/bud2/backend/internal/api/httputil"
 )
 
 // RateLimiter implements a simple in-memory rate limiter per IP

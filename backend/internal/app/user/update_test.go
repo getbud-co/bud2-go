@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	apptx "github.com/dsbraz/bud2/backend/internal/app/tx"
-	"github.com/dsbraz/bud2/backend/internal/domain/membership"
-	"github.com/dsbraz/bud2/backend/internal/domain/organization"
-	usr "github.com/dsbraz/bud2/backend/internal/domain/user"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
-	"github.com/dsbraz/bud2/backend/internal/test/mocks"
-	"github.com/dsbraz/bud2/backend/internal/test/testutil"
+	apptx "github.com/getbud-co/bud2/backend/internal/app/tx"
+	"github.com/getbud-co/bud2/backend/internal/domain/membership"
+	"github.com/getbud-co/bud2/backend/internal/domain/organization"
+	usr "github.com/getbud-co/bud2/backend/internal/domain/user"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
+	"github.com/getbud-co/bud2/backend/internal/test/mocks"
+	"github.com/getbud-co/bud2/backend/internal/test/testutil"
 )
 
 type updateTestTxRepos struct {

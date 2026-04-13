@@ -5,7 +5,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/dsbraz/bud2/backend/internal/domain/auth"
+	"github.com/getbud-co/bud2/backend/internal/domain/auth"
 )
 
 // BcryptPasswordHasher implements domain/auth.PasswordHasher using bcrypt.

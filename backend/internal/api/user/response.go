@@ -3,7 +3,7 @@ package user
 import (
 	"time"
 
-	appuser "github.com/dsbraz/bud2/backend/internal/app/user"
+	appuser "github.com/getbud-co/bud2/backend/internal/app/user"
 )
 
 type Response struct {

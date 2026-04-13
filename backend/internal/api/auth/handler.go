@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/dsbraz/bud2/backend/internal/api/httputil"
-	"github.com/dsbraz/bud2/backend/internal/api/validator"
-	appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
-	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/getbud-co/bud2/backend/internal/api/httputil"
+	"github.com/getbud-co/bud2/backend/internal/api/validator"
+	appauth "github.com/getbud-co/bud2/backend/internal/app/auth"
+	"github.com/getbud-co/bud2/backend/internal/domain"
 )
 
 type loginUseCase interface {

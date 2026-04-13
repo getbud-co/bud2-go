@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dsbraz/bud2/backend/internal/api/httputil"
-	appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
+	"github.com/getbud-co/bud2/backend/internal/api/httputil"
+	appauth "github.com/getbud-co/bud2/backend/internal/app/auth"
 )
 
 func TestHandleAuthError(t *testing.T) {

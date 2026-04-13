@@ -3,8 +3,8 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/dsbraz/bud2/backend/internal/api/httputil"
-	"github.com/dsbraz/bud2/backend/internal/domain"
+	"github.com/getbud-co/bud2/backend/internal/api/httputil"
+	"github.com/getbud-co/bud2/backend/internal/domain"
 )
 
 func TenantMiddleware(next http.Handler) http.Handler {

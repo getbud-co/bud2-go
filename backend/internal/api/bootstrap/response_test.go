@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	appbootstrap "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
+	appbootstrap "github.com/getbud-co/bud2/backend/internal/app/bootstrap"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
 )
 
 func TestCreateBootstrapResponse(t *testing.T) {

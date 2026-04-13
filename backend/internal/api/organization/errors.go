@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dsbraz/bud2/backend/internal/api/httputil"
-	"github.com/dsbraz/bud2/backend/internal/domain"
-	org "github.com/dsbraz/bud2/backend/internal/domain/organization"
+	"github.com/getbud-co/bud2/backend/internal/api/httputil"
+	"github.com/getbud-co/bud2/backend/internal/domain"
+	org "github.com/getbud-co/bud2/backend/internal/domain/organization"
 )
 
 func handleError(w http.ResponseWriter, err error) {

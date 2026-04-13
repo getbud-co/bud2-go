@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	appbootstrap "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
+	appbootstrap "github.com/getbud-co/bud2/backend/internal/app/bootstrap"
 )
 
 func TestCreateRequestToCommand(t *testing.T) {

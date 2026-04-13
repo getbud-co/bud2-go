@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	apptx "github.com/dsbraz/bud2/backend/internal/app/tx"
+	apptx "github.com/getbud-co/bud2/backend/internal/app/tx"
 )
 
 type TxManager struct {

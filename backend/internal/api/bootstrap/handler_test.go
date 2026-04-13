@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	appbootstrap "github.com/dsbraz/bud2/backend/internal/app/bootstrap"
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
+	appbootstrap "github.com/getbud-co/bud2/backend/internal/app/bootstrap"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
 )
 
 type mockBootstrapUseCase struct{ mock.Mock }

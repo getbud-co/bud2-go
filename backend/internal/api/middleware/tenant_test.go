@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/dsbraz/bud2/backend/internal/test/fixtures"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
 )
 
 func TestTenantMiddleware_Success(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/dsbraz/bud2/backend/internal/api/httputil"
-	appauth "github.com/dsbraz/bud2/backend/internal/app/auth"
+	"github.com/getbud-co/bud2/backend/internal/api/httputil"
+	appauth "github.com/getbud-co/bud2/backend/internal/app/auth"
 )
 
 func handleAuthError(w http.ResponseWriter, err error) {

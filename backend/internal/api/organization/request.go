@@ -3,7 +3,7 @@ package organization
 import (
 	"github.com/google/uuid"
 
-	"github.com/dsbraz/bud2/backend/internal/app/organization"
+	"github.com/getbud-co/bud2/backend/internal/app/organization"
 )
 
 type createRequest struct {

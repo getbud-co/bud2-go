@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/dsbraz/bud2/backend/internal/domain/membership"
+	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 )
 
 type MembershipRepository struct {
