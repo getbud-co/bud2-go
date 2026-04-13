@@ -223,7 +223,6 @@ export function generateRelativeCycles(): CycleDefinition[] {
 
   // Remaining quarters of the year (if any)
   for (let q = nextQuarter + 1; q <= 4; q++) {
-    if (q > 4) break;
     const qStart = new Date(year, (q - 1) * 3, 1);
     const qEnd = new Date(year, q * 3, 0);
     cycles.push({
