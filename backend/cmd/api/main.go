@@ -179,7 +179,15 @@ func runMigrations(databaseURL string) {
 		slog.Error("failed to initialize migrations", "error", err)
 		os.Exit(1)
 	}
-	defer m.Close()
+	defer func() {
+		sourceErr, databaseErr := m.Close()
+		if sourceErr != nil {
+			slog.Error("failed to close migration source", "error", sourceErr)
+		}
+		if databaseErr != nil {
+			slog.Error("failed to close migration database", "error", databaseErr)
+		}
+	}()
 
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		slog.Error("failed to run migrations", "error", err)

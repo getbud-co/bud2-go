@@ -3,14 +3,13 @@ FROM node:24-alpine AS base
 FROM base AS deps
 WORKDIR /app
 COPY package.json yarn.lock ./
-RUN corepack enable
-RUN yarn install --frozen-lockfile
+COPY packages/ ./packages/
+RUN corepack enable && yarn install --frozen-lockfile
 
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN corepack enable
 RUN yarn build
 
 FROM base AS runner
