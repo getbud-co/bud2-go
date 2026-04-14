@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"github.com/getbud-co/bud2/backend/internal/api/httputil"
@@ -23,20 +22,24 @@ type updateSessionUseCase interface {
 	Execute(ctx context.Context, claims domain.UserClaims, cmd appauth.SwitchOrganizationCommand) (*appauth.SwitchOrganizationResult, error)
 }
 
+type refreshUseCase interface {
+	Execute(ctx context.Context, cmd appauth.RefreshCommand) (*appauth.RefreshResult, error)
+}
+
 type Handler struct {
 	login         loginUseCase
 	getSession    sessionUseCase
 	updateSession updateSessionUseCase
+	refresh       refreshUseCase
 }
 
-func NewHandler(login loginUseCase, getSession sessionUseCase, updateSession updateSessionUseCase) *Handler {
-	return &Handler{login: login, getSession: getSession, updateSession: updateSession}
+func NewHandler(login loginUseCase, getSession sessionUseCase, updateSession updateSessionUseCase, refresh refreshUseCase) *Handler {
+	return &Handler{login: login, getSession: getSession, updateSession: updateSession, refresh: refresh}
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteProblem(w, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+	if !httputil.DecodeJSON(w, r, &req) {
 		return
 	}
 	if err := validator.Validate(req); err != nil {
@@ -52,6 +55,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	resp := responseFromSession(result.Session)
 	resp.AccessToken = result.Token
+	resp.RefreshToken = result.RefreshToken
 	resp.TokenType = "Bearer"
 	httputil.WriteJSON(w, http.StatusOK, resp)
 }
@@ -80,8 +84,7 @@ func (h *Handler) UpdateSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req updateSessionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteProblem(w, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+	if !httputil.DecodeJSON(w, r, &req) {
 		return
 	}
 	if err := validator.Validate(req); err != nil {
@@ -103,6 +106,30 @@ func (h *Handler) UpdateSession(w http.ResponseWriter, r *http.Request) {
 
 	resp := responseFromSession(result.Session)
 	resp.AccessToken = result.Token
+	resp.RefreshToken = result.RefreshToken
+	resp.TokenType = "Bearer"
+	httputil.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) Refresh(w http.ResponseWriter, r *http.Request) {
+	var req refreshRequest
+	if !httputil.DecodeJSON(w, r, &req) {
+		return
+	}
+	if err := validator.Validate(req); err != nil {
+		httputil.WriteProblem(w, http.StatusUnprocessableEntity, "Validation Error", validator.FormatValidationErrors(err))
+		return
+	}
+
+	result, err := h.refresh.Execute(r.Context(), appauth.RefreshCommand{RawToken: req.RefreshToken})
+	if err != nil {
+		handleAuthError(w, err)
+		return
+	}
+
+	resp := responseFromSession(result.Session)
+	resp.AccessToken = result.Token
+	resp.RefreshToken = result.RefreshToken
 	resp.TokenType = "Bearer"
 	httputil.WriteJSON(w, http.StatusOK, resp)
 }

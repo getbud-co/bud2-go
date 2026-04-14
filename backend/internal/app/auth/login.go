@@ -25,16 +25,33 @@ type LoginCommand struct {
 }
 
 type LoginResult struct {
-	Token   string
-	Session Session
+	Token        string
+	RefreshToken string
+	Session      Session
 }
 
 type LoginUseCase struct {
 	support authSupport
 }
 
-func NewLoginUseCase(users user.Repository, memberships membership.Repository, organizations organization.Repository, issuer tokenIssuer, passwordHasher domainauth.PasswordHasher, logger *slog.Logger) *LoginUseCase {
-	return &LoginUseCase{support: newAuthSupport(users, memberships, organizations, issuer, passwordHasher, logger, 7*24*time.Hour)}
+func NewLoginUseCase(
+	users user.Repository,
+	memberships membership.Repository,
+	organizations organization.Repository,
+	issuer tokenIssuer,
+	passwordHasher domainauth.PasswordHasher,
+	refreshTokenRepo domainauth.RefreshTokenRepository,
+	tokenHasher domainauth.TokenHasher,
+	logger *slog.Logger,
+) *LoginUseCase {
+	return &LoginUseCase{support: newAuthSupport(
+		users, memberships, organizations,
+		issuer, passwordHasher,
+		refreshTokenRepo, tokenHasher,
+		logger,
+		15*time.Minute, // access token TTL
+		7*24*time.Hour, // refresh token TTL
+	)}
 }
 
 func (uc *LoginUseCase) Execute(ctx context.Context, cmd LoginCommand) (*LoginResult, error) {
@@ -71,7 +88,12 @@ func (uc *LoginUseCase) Execute(ctx context.Context, cmd LoginCommand) (*LoginRe
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
+	refreshToken, err := uc.support.issueRefreshToken(ctx, session.User.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
 	session.User = setUserPasswordHash(&session.User, "")
 	uc.support.logger.Info("login successful", "user_id", session.User.ID, "active_organization", session.ActiveOrganization != nil)
-	return &LoginResult{Token: token, Session: *session}, nil
+	return &LoginResult{Token: token, RefreshToken: refreshToken, Session: *session}, nil
 }

@@ -49,6 +49,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetail"
 
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: New token pair issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Refresh token invalid, expired or revoked
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetail"
+
   /auth/session:
     get:
       summary: Current session
@@ -334,6 +358,12 @@ components:
           items:
             $ref: "#/components/schemas/AccessibleOrganization"
 
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+
     AuthResponse:
       allOf:
         - $ref: "#/components/schemas/SessionResponse"
@@ -341,6 +371,7 @@ components:
           required: [access_token, token_type]
           properties:
             access_token: { type: string }
+            refresh_token: { type: string }
             token_type: { type: string, example: Bearer }
 
     BootstrapRequest:

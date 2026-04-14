@@ -1,6 +1,10 @@
 package config
 
-import "os"
+import (
+	"os"
+	"strconv"
+	"time"
+)
 
 type Config struct {
 	Port            string
@@ -14,6 +18,9 @@ type Config struct {
 	OTelServiceName string
 	OTelEnvironment string
 	LogLevel        string
+	MaxBodySize     int64
+	RequestTimeout  time.Duration
+	ShutdownTimeout time.Duration
 }
 
 func Load() *Config {
@@ -29,6 +36,9 @@ func Load() *Config {
 		OTelServiceName: getEnv("OTEL_SERVICE_NAME", "bud2-backend"),
 		OTelEnvironment: getEnv("OTEL_ENVIRONMENT", "development"),
 		LogLevel:        getEnv("LOG_LEVEL", "info"),
+		MaxBodySize:     getEnvInt64("MAX_BODY_SIZE", 1048576), // 1 MB default
+		RequestTimeout:  getEnvDuration("REQUEST_TIMEOUT", 30*time.Second),
+		ShutdownTimeout: getEnvDuration("SHUTDOWN_TIMEOUT", 30*time.Second),
 	}
 
 	return cfg
@@ -37,6 +47,24 @@ func Load() *Config {
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func getEnvInt64(key string, fallback int64) int64 {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func getEnvDuration(key string, fallback time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
 	}
 	return fallback
 }

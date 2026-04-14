@@ -2,7 +2,6 @@ package organization
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -49,8 +48,7 @@ func NewHandler(
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req createRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteProblem(w, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+	if !httputil.DecodeJSON(w, r, &req) {
 		return
 	}
 
@@ -129,8 +127,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req updateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httputil.WriteProblem(w, http.StatusBadRequest, "Bad Request", "invalid JSON body")
+	if !httputil.DecodeJSON(w, r, &req) {
 		return
 	}
 

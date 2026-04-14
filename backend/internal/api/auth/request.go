@@ -15,6 +15,10 @@ type updateSessionRequest struct {
 	OrganizationID string `json:"organization_id" validate:"required,uuid4"`
 }
 
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
 func (r loginRequest) toCommand() appauth.LoginCommand {
 	return appauth.LoginCommand{
 		Email:    r.Email,

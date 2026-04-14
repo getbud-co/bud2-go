@@ -28,6 +28,8 @@ type RouterConfig struct {
 	JWTSecret      string
 	Enforcer       middleware.PermissionChecker
 	Pool           *pgxpool.Pool
+	MaxBodySize    int64
+	RequestTimeout time.Duration
 }
 
 func NewRouter(bootstrapHandler BootstrapHandler, authHandler *auth.Handler, orgHandler *apiorg.Handler, userHandler *apiuser.Handler, cfg RouterConfig) *chi.Mux {
@@ -47,6 +49,7 @@ func NewRouter(bootstrapHandler BootstrapHandler, authHandler *auth.Handler, org
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Tenant-ID"},
 		AllowCredentials: true,
 	}))
+	r.Use(middleware.BodySizeLimit(cfg.MaxBodySize))
 	r.Use(chimw.Recoverer)
 	r.Use(middleware.TraceMiddleware)
 	r.Use(middleware.RequestLogger)
@@ -60,33 +63,39 @@ func NewRouter(bootstrapHandler BootstrapHandler, authHandler *auth.Handler, org
 		r.Get("/swagger/openapi.yml", openapiSpecHandler(cfg.OpenAPISpec))
 	}
 
-	// Public routes with rate limiting
-	r.Route("/auth", func(r chi.Router) {
-		r.Use(middleware.RateLimit(5, time.Minute)) // 5 requests per minute
-		r.Post("/login", authHandler.Login)
-		r.With(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret})).Get("/session", authHandler.Session)
-		r.With(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret})).Put("/session", authHandler.UpdateSession)
-	})
+	// All non-health routes get request timeout.
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.RequestTimeout(cfg.RequestTimeout))
 
-	// Bootstrap with stricter rate limiting
-	r.With(middleware.RateLimit(3, time.Minute)).Post("/bootstrap", bootstrapHandler.Create)
+		// Public routes with rate limiting
+		r.Route("/auth", func(r chi.Router) {
+			r.Use(middleware.RateLimit(5, time.Minute)) // 5 requests per minute
+			r.Post("/login", authHandler.Login)
+			r.Post("/refresh", authHandler.Refresh)
+			r.With(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret})).Get("/session", authHandler.Session)
+			r.With(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret})).Put("/session", authHandler.UpdateSession)
+		})
 
-	r.Route("/organizations", func(r chi.Router) {
-		r.Use(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret}))
-		r.Use(middleware.TenantMiddleware)
-		r.With(middleware.RequirePermission(cfg.Enforcer, "org", "write")).Post("/", orgHandler.Create)
-		r.With(middleware.RequirePermission(cfg.Enforcer, "org", "read")).Get("/", orgHandler.List)
-		r.With(middleware.RequirePermission(cfg.Enforcer, "org", "read")).Get("/{id}", orgHandler.Get)
-		r.With(middleware.RequirePermission(cfg.Enforcer, "org", "write")).Put("/{id}", orgHandler.Update)
-	})
+		// Bootstrap with stricter rate limiting
+		r.With(middleware.RateLimit(3, time.Minute)).Post("/bootstrap", bootstrapHandler.Create)
 
-	r.Route("/users", func(r chi.Router) {
-		r.Use(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret}))
-		r.Use(middleware.TenantMiddleware)
-		r.With(middleware.RequirePermission(cfg.Enforcer, "users", "write")).Post("/", userHandler.Create)
-		r.With(middleware.RequirePermission(cfg.Enforcer, "users", "read")).Get("/", userHandler.List)
-		r.With(middleware.RequirePermission(cfg.Enforcer, "users", "read")).Get("/{id}", userHandler.Get)
-		r.With(middleware.RequirePermission(cfg.Enforcer, "users", "write")).Put("/{id}", userHandler.Update)
+		r.Route("/organizations", func(r chi.Router) {
+			r.Use(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret}))
+			r.Use(middleware.TenantMiddleware)
+			r.With(middleware.RequirePermission(cfg.Enforcer, "org", "write")).Post("/", orgHandler.Create)
+			r.With(middleware.RequirePermission(cfg.Enforcer, "org", "read")).Get("/", orgHandler.List)
+			r.With(middleware.RequirePermission(cfg.Enforcer, "org", "read")).Get("/{id}", orgHandler.Get)
+			r.With(middleware.RequirePermission(cfg.Enforcer, "org", "write")).Put("/{id}", orgHandler.Update)
+		})
+
+		r.Route("/users", func(r chi.Router) {
+			r.Use(middleware.AuthMiddleware(middleware.AuthMiddlewareConfig{JWTSecret: cfg.JWTSecret}))
+			r.Use(middleware.TenantMiddleware)
+			r.With(middleware.RequirePermission(cfg.Enforcer, "users", "write")).Post("/", userHandler.Create)
+			r.With(middleware.RequirePermission(cfg.Enforcer, "users", "read")).Get("/", userHandler.List)
+			r.With(middleware.RequirePermission(cfg.Enforcer, "users", "read")).Get("/{id}", userHandler.Get)
+			r.With(middleware.RequirePermission(cfg.Enforcer, "users", "write")).Put("/{id}", userHandler.Update)
+		})
 	})
 
 	return r

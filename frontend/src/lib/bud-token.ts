@@ -1,6 +1,8 @@
+import { decodeJwt } from "jose";
 import { cookies } from "next/headers";
 
 export const BUD_ACCESS_TOKEN_COOKIE = "bud_access_token";
+const BUD_REFRESH_TOKEN_COOKIE = "bud_refresh_token";
 const BUD_SESSION_COOKIE = "bud_auth_session";
 
 export interface BudUser {
@@ -23,6 +25,7 @@ export interface BudOrganization {
 
 export interface BudSession {
   access_token?: string;
+  refresh_token?: string;
   token_type?: "Bearer";
   user: BudUser;
   active_organization?: BudOrganization | null;
@@ -36,12 +39,13 @@ export class UnauthorizedError extends Error {
   }
 }
 
-function getCookieOptions() {
+function getCookieOptions(maxAge?: number) {
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
+    ...(maxAge !== undefined ? { maxAge } : {}),
   };
 }
 
@@ -64,14 +68,25 @@ export async function saveBudSession(session: BudSession): Promise<void> {
     throw new Error("Missing access token in Bud session");
   }
 
+  // Access token: short-lived, store as session cookie (expires with browser close)
   cookieStore.set(BUD_ACCESS_TOKEN_COOKIE, token, getCookieOptions());
+
+  // Refresh token: 7-day persistent cookie
+  if (session.refresh_token) {
+    cookieStore.set(
+      BUD_REFRESH_TOKEN_COOKIE,
+      session.refresh_token,
+      getCookieOptions(7 * 24 * 60 * 60),
+    );
+  }
+
   cookieStore.set(
     BUD_SESSION_COOKIE,
     JSON.stringify({
       user: session.user,
       active_organization: session.active_organization ?? null,
       organizations: session.organizations,
-    } satisfies Omit<BudSession, "access_token" | "token_type">),
+    } satisfies Omit<BudSession, "access_token" | "refresh_token" | "token_type">),
     getCookieOptions(),
   );
 }
@@ -80,7 +95,28 @@ export async function clearBudSession(): Promise<void> {
   const cookieStore = await cookies();
 
   cookieStore.delete(BUD_ACCESS_TOKEN_COOKIE);
+  cookieStore.delete(BUD_REFRESH_TOKEN_COOKIE);
   cookieStore.delete(BUD_SESSION_COOKIE);
+}
+
+async function attemptTokenRefresh(): Promise<BudSession | null> {
+  const cookieStore = await cookies();
+  const refreshToken = cookieStore.get(BUD_REFRESH_TOKEN_COOKIE)?.value;
+
+  if (!refreshToken) return null;
+
+  const apiUrl = process.env.BUD_API_URL;
+  const response = await fetch(`${apiUrl}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+
+  if (!response.ok) return null;
+
+  const session = (await response.json()) as BudSession;
+  await saveBudSession(session);
+  return session;
 }
 
 export async function getBudSession(): Promise<BudSession> {
@@ -89,20 +125,34 @@ export async function getBudSession(): Promise<BudSession> {
   const token = cookieStore.get(BUD_ACCESS_TOKEN_COOKIE)?.value;
 
   if (!token) {
+    // Access token gone (e.g. browser restarted) — try refresh before giving up.
+    const refreshed = await attemptTokenRefresh();
+    if (refreshed) return refreshed;
     throw new UnauthorizedError();
   }
 
   if (rawSession) {
-    const session = JSON.parse(rawSession) as Omit<
-      BudSession,
-      "access_token" | "token_type"
-    >;
+    // Check JWT expiry before trusting the cached session.
+    // A 30-second buffer ensures we refresh slightly before actual expiry.
+    try {
+      const { exp } = decodeJwt(token);
+      const expiresAt = (exp ?? 0) * 1000;
+      if (Date.now() < expiresAt - 30_000) {
+        const session = JSON.parse(rawSession) as Omit<
+          BudSession,
+          "access_token" | "refresh_token" | "token_type"
+        >;
+        return { ...session, access_token: token, token_type: "Bearer" };
+      }
+    } catch {
+      // Malformed token — fall through to refresh
+    }
 
-    return {
-      ...session,
-      access_token: token,
-      token_type: "Bearer",
-    };
+    // Token is expired or nearly so — refresh proactively.
+    const refreshed = await attemptTokenRefresh();
+    if (refreshed) return refreshed;
+    await clearBudSession();
+    throw new UnauthorizedError();
   }
 
   const apiUrl = process.env.BUD_API_URL;
@@ -114,6 +164,8 @@ export async function getBudSession(): Promise<BudSession> {
   });
 
   if (response.status === 401) {
+    const refreshed = await attemptTokenRefresh();
+    if (refreshed) return refreshed;
     await clearBudSession();
     throw new UnauthorizedError();
   }

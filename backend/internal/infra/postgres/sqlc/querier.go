@@ -22,12 +22,14 @@ type Querier interface {
 	CountUsersByStatus(ctx context.Context, status string) (int64, error)
 	CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (CreateOrganizationRow, error)
 	CreateOrganizationMembership(ctx context.Context, arg CreateOrganizationMembershipParams) (CreateOrganizationMembershipRow, error)
+	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	GetOrganizationByDomain(ctx context.Context, lower string) (GetOrganizationByDomainRow, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (GetOrganizationByIDRow, error)
 	GetOrganizationByWorkspace(ctx context.Context, workspace string) (GetOrganizationByWorkspaceRow, error)
 	GetOrganizationMembershipByID(ctx context.Context, id uuid.UUID) (GetOrganizationMembershipByIDRow, error)
 	GetOrganizationMembershipByOrganizationAndUser(ctx context.Context, arg GetOrganizationMembershipByOrganizationAndUserParams) (GetOrganizationMembershipByOrganizationAndUserRow, error)
+	GetRefreshTokenByTokenHash(ctx context.Context, tokenHash string) (RefreshToken, error)
 	GetUserByEmail(ctx context.Context, lower string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
 	ListOrganizationMemberships(ctx context.Context, arg ListOrganizationMembershipsParams) ([]ListOrganizationMembershipsRow, error)
@@ -38,6 +40,8 @@ type Querier interface {
 	ListUserMembershipsByStatus(ctx context.Context, arg ListUserMembershipsByStatusParams) ([]ListUserMembershipsByStatusRow, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
 	ListUsersByStatus(ctx context.Context, arg ListUsersByStatusParams) ([]ListUsersByStatusRow, error)
+	RevokeAllRefreshTokensByUserID(ctx context.Context, userID uuid.UUID) error
+	RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
 	SearchUsers(ctx context.Context, arg SearchUsersParams) ([]SearchUsersRow, error)
 	SoftDeleteOrganization(ctx context.Context, id uuid.UUID) error
 	SoftDeleteOrganizationMembership(ctx context.Context, id uuid.UUID) error

@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/exaring/otelpgx"
 	"github.com/golang-migrate/migrate/v4"
@@ -64,25 +66,19 @@ func main() {
 		slog.Error("failed to initialize OpenTelemetry", "error", err)
 		os.Exit(1)
 	}
-	defer func() {
-		if err := otelProvider.Shutdown(context.Background()); err != nil {
-			slog.Error("failed to shutdown OpenTelemetry", "error", err)
-		}
-	}()
 
 	// Run migrations
 	runMigrations(cfg.DatabaseURL)
 
 	// Database connection pool with OpenTelemetry instrumentation
-	ctx := context.Background()
-	pool, err := initDBPool(ctx, cfg.DatabaseURL)
+	bgCtx := context.Background()
+	pool, err := initDBPool(bgCtx, cfg.DatabaseURL)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer pool.Close()
 
-	if err := pool.Ping(ctx); err != nil {
+	if err := pool.Ping(bgCtx); err != nil {
 		slog.Error("database ping failed", "error", err)
 		os.Exit(1)
 	}
@@ -92,9 +88,11 @@ func main() {
 	orgRepo := postgres.NewOrgRepository(queries)
 	userRepo := postgres.NewUserRepository(queries)
 	membershipRepo := postgres.NewMembershipRepository(queries)
+	refreshTokenRepo := postgres.NewRefreshTokenRepository(queries)
 	txManager := postgres.NewTxManager(pool)
 	tokenIssuer := infraauth.NewTokenIssuer(cfg.JWTSecret)
 	passwordHasher := infraauth.NewDefaultBcryptPasswordHasher()
+	tokenHasher := infraauth.NewSHA256TokenHasher()
 
 	// Use cases
 	createOrg := apporg.NewCreateUseCase(orgRepo, logger)
@@ -108,13 +106,14 @@ func main() {
 	updateUser := appuser.NewUpdateUseCase(userRepo, membershipRepo, txManager, logger)
 
 	bootstrapUC := appbootstrap.NewUseCase(orgRepo, txManager, tokenIssuer, passwordHasher, logger)
-	loginUC := appauth.NewLoginUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, logger)
+	loginUC := appauth.NewLoginUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, refreshTokenRepo, tokenHasher, logger)
 	getSessionUC := appauth.NewGetSessionUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, logger)
-	switchOrganizationUC := appauth.NewSwitchOrganizationUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, logger)
+	switchOrganizationUC := appauth.NewSwitchOrganizationUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, refreshTokenRepo, tokenHasher, logger)
+	refreshUC := appauth.NewRefreshUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, refreshTokenRepo, tokenHasher, logger)
 
 	// Handlers + Router
 	bootstrapHandler := apibootstrap.NewHandler(bootstrapUC)
-	authHandler := apiauth.NewHandler(loginUC, getSessionUC, switchOrganizationUC)
+	authHandler := apiauth.NewHandler(loginUC, getSessionUC, switchOrganizationUC, refreshUC)
 	orgHandler := apiorg.NewHandler(createOrg, getOrg, listOrg, updateOrg)
 	userHandler := apiuser.NewHandler(createUser, getUser, listUser, updateUser)
 	router := api.NewRouter(bootstrapHandler, authHandler, orgHandler, userHandler, api.RouterConfig{
@@ -124,13 +123,45 @@ func main() {
 		JWTSecret:      cfg.JWTSecret,
 		Enforcer:       rbac.Enforcer(),
 		Pool:           pool,
+		MaxBodySize:    cfg.MaxBodySize,
+		RequestTimeout: cfg.RequestTimeout,
 	})
 
-	slog.Info("starting server", "port", cfg.Port)
-	if err := http.ListenAndServe(":"+cfg.Port, router); err != nil {
-		slog.Error("server error", "error", err)
-		os.Exit(1)
+	srv := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: router,
 	}
+
+	// Signal handling for graceful shutdown.
+	sigCtx, stop := signal.NotifyContext(bgCtx, syscall.SIGTERM, syscall.SIGINT)
+	defer stop()
+
+	go func() {
+		slog.Info("starting server", "port", cfg.Port)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-sigCtx.Done()
+	slog.Info("shutdown signal received, draining in-flight requests...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(bgCtx, cfg.ShutdownTimeout)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("server shutdown error", "error", err)
+	}
+
+	pool.Close()
+	slog.Info("database pool closed")
+
+	if err := otelProvider.Shutdown(bgCtx); err != nil {
+		slog.Error("failed to shutdown OpenTelemetry", "error", err)
+	}
+
+	slog.Info("shutdown complete")
 }
 
 func initLogger(env, levelStr string) *slog.Logger {

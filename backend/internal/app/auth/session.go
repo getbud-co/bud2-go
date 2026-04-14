@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	domainauth "github.com/getbud-co/bud2/backend/internal/domain/auth"
 	"github.com/getbud-co/bud2/backend/internal/domain/membership"
@@ -18,8 +17,22 @@ type GetSessionUseCase struct {
 	support authSupport
 }
 
-func NewGetSessionUseCase(users user.Repository, memberships membership.Repository, organizations organization.Repository, issuer tokenIssuer, passwordHasher domainauth.PasswordHasher, logger *slog.Logger) *GetSessionUseCase {
-	return &GetSessionUseCase{support: newAuthSupport(users, memberships, organizations, issuer, passwordHasher, logger, 7*24*time.Hour)}
+func NewGetSessionUseCase(
+	users user.Repository,
+	memberships membership.Repository,
+	organizations organization.Repository,
+	issuer tokenIssuer,
+	passwordHasher domainauth.PasswordHasher,
+	logger *slog.Logger,
+) *GetSessionUseCase {
+	// GetSession does not issue tokens; refresh token repo/hasher are not needed.
+	return &GetSessionUseCase{support: newAuthSupport(
+		users, memberships, organizations,
+		issuer, passwordHasher,
+		nil, nil,
+		logger,
+		0, 0,
+	)}
 }
 
 func (uc *GetSessionUseCase) Execute(ctx context.Context, claims domain.UserClaims) (*Session, error) {

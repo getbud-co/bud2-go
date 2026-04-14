@@ -15,6 +15,7 @@ import (
 
 	appauth "github.com/getbud-co/bud2/backend/internal/app/auth"
 	"github.com/getbud-co/bud2/backend/internal/domain"
+	domainauth "github.com/getbud-co/bud2/backend/internal/domain/auth"
 	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
 )
 
@@ -48,9 +49,19 @@ func (m *mockUpdateSessionUseCase) Execute(ctx context.Context, claims domain.Us
 	return args.Get(0).(*appauth.SwitchOrganizationResult), args.Error(1)
 }
 
+type mockRefreshUseCase struct{ mock.Mock }
+
+func (m *mockRefreshUseCase) Execute(ctx context.Context, cmd appauth.RefreshCommand) (*appauth.RefreshResult, error) {
+	args := m.Called(ctx, cmd)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*appauth.RefreshResult), args.Error(1)
+}
+
 func TestHandler_Login_Success(t *testing.T) {
 	loginUC := new(mockLoginUseCase)
-	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockUpdateSessionUseCase))
+	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockUpdateSessionUseCase), new(mockRefreshUseCase))
 
 	testUser := fixtures.NewUser()
 	testOrg := fixtures.NewOrganization()
@@ -77,7 +88,7 @@ func TestHandler_Login_Success(t *testing.T) {
 func TestHandler_Session_Success(t *testing.T) {
 	claims := fixtures.NewTestUserClaims()
 	sessionUC := new(mockSessionUseCase)
-	handler := NewHandler(new(mockLoginUseCase), sessionUC, new(mockUpdateSessionUseCase))
+	handler := NewHandler(new(mockLoginUseCase), sessionUC, new(mockUpdateSessionUseCase), new(mockRefreshUseCase))
 	testUser := fixtures.NewUser()
 	sessionUC.On("Execute", mock.Anything, claims).Return(&appauth.Session{User: *testUser}, nil)
 
@@ -90,7 +101,7 @@ func TestHandler_Session_Success(t *testing.T) {
 func TestHandler_UpdateSession_Success(t *testing.T) {
 	claims := fixtures.NewTestUserClaims()
 	updateUC := new(mockUpdateSessionUseCase)
-	handler := NewHandler(new(mockLoginUseCase), new(mockSessionUseCase), updateUC)
+	handler := NewHandler(new(mockLoginUseCase), new(mockSessionUseCase), updateUC, new(mockRefreshUseCase))
 	orgID := uuid.New()
 	testUser := fixtures.NewUser()
 	updateUC.On("Execute", mock.Anything, claims, appauth.SwitchOrganizationCommand{OrganizationID: orgID}).Return(&appauth.SwitchOrganizationResult{Token: "new-token", Session: appauth.Session{User: *testUser}}, nil)
@@ -105,7 +116,7 @@ func TestHandler_UpdateSession_Success(t *testing.T) {
 
 func TestHandler_Login_InvalidCredentials(t *testing.T) {
 	loginUC := new(mockLoginUseCase)
-	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockUpdateSessionUseCase))
+	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockUpdateSessionUseCase), new(mockRefreshUseCase))
 	body, _ := json.Marshal(loginRequest{Email: "admin@example.com", Password: "wrongpassword"})
 	loginUC.On("Execute", mock.Anything, mock.Anything).Return(nil, appauth.ErrInvalidCredentials)
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
@@ -117,7 +128,7 @@ func TestHandler_Login_InvalidCredentials(t *testing.T) {
 
 func TestHandler_Login_InternalError(t *testing.T) {
 	loginUC := new(mockLoginUseCase)
-	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockUpdateSessionUseCase))
+	handler := NewHandler(loginUC, new(mockSessionUseCase), new(mockUpdateSessionUseCase), new(mockRefreshUseCase))
 	body, _ := json.Marshal(loginRequest{Email: "admin@example.com", Password: "password123"})
 	loginUC.On("Execute", mock.Anything, mock.Anything).Return(nil, errors.New("internal error"))
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
@@ -125,4 +136,45 @@ func TestHandler_Login_InternalError(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.Login(rr, req)
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+func TestHandler_Refresh_Success(t *testing.T) {
+	refreshUC := new(mockRefreshUseCase)
+	handler := NewHandler(new(mockLoginUseCase), new(mockSessionUseCase), new(mockUpdateSessionUseCase), refreshUC)
+
+	testUser := fixtures.NewUser()
+	refreshUC.On("Execute", mock.Anything, appauth.RefreshCommand{RawToken: "raw-refresh-token"}).Return(&appauth.RefreshResult{
+		Token:        "new-access-token",
+		RefreshToken: "new-refresh-token",
+		Session:      appauth.Session{User: *testUser},
+	}, nil)
+
+	body, _ := json.Marshal(refreshRequest{RefreshToken: "raw-refresh-token"})
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.Refresh(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	var response authResponse
+	assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	assert.Equal(t, "new-access-token", response.AccessToken)
+	assert.Equal(t, "new-refresh-token", response.RefreshToken)
+}
+
+func TestHandler_Refresh_InvalidToken(t *testing.T) {
+	refreshUC := new(mockRefreshUseCase)
+	handler := NewHandler(new(mockLoginUseCase), new(mockSessionUseCase), new(mockUpdateSessionUseCase), refreshUC)
+
+	refreshUC.On("Execute", mock.Anything, mock.Anything).Return(nil, domainauth.ErrRefreshTokenNotFound)
+
+	body, _ := json.Marshal(refreshRequest{RefreshToken: "bad-token"})
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.Refresh(rr, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }

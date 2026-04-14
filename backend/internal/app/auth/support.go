@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -21,25 +23,64 @@ type tokenIssuer interface {
 }
 
 type authSupport struct {
-	users          user.Repository
-	memberships    membership.Repository
-	organizations  organization.Repository
-	issuer         tokenIssuer
-	passwordHasher domainauth.PasswordHasher
-	logger         *slog.Logger
-	tokenTTL       time.Duration
+	users            user.Repository
+	memberships      membership.Repository
+	organizations    organization.Repository
+	issuer           tokenIssuer
+	passwordHasher   domainauth.PasswordHasher
+	refreshTokenRepo domainauth.RefreshTokenRepository
+	tokenHasher      domainauth.TokenHasher
+	logger           *slog.Logger
+	tokenTTL         time.Duration
+	refreshTokenTTL  time.Duration
 }
 
-func newAuthSupport(users user.Repository, memberships membership.Repository, organizations organization.Repository, issuer tokenIssuer, passwordHasher domainauth.PasswordHasher, logger *slog.Logger, tokenTTL time.Duration) authSupport {
+func newAuthSupport(
+	users user.Repository,
+	memberships membership.Repository,
+	organizations organization.Repository,
+	issuer tokenIssuer,
+	passwordHasher domainauth.PasswordHasher,
+	refreshTokenRepo domainauth.RefreshTokenRepository,
+	tokenHasher domainauth.TokenHasher,
+	logger *slog.Logger,
+	tokenTTL time.Duration,
+	refreshTokenTTL time.Duration,
+) authSupport {
 	return authSupport{
-		users:          users,
-		memberships:    memberships,
-		organizations:  organizations,
-		issuer:         issuer,
-		passwordHasher: passwordHasher,
-		logger:         logger,
-		tokenTTL:       tokenTTL,
+		users:            users,
+		memberships:      memberships,
+		organizations:    organizations,
+		issuer:           issuer,
+		passwordHasher:   passwordHasher,
+		refreshTokenRepo: refreshTokenRepo,
+		tokenHasher:      tokenHasher,
+		logger:           logger,
+		tokenTTL:         tokenTTL,
+		refreshTokenTTL:  refreshTokenTTL,
 	}
+}
+
+// issueRefreshToken generates a cryptographically random opaque token,
+// hashes it, persists the hash, and returns the raw token to send to the client.
+func (s authSupport) issueRefreshToken(ctx context.Context, userID uuid.UUID) (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+	rawToken := base64.RawURLEncoding.EncodeToString(raw)
+	tokenHash := s.tokenHasher.Hash(rawToken)
+
+	_, err := s.refreshTokenRepo.Create(ctx, &domainauth.RefreshToken{
+		ID:        uuid.New(),
+		UserID:    userID,
+		TokenHash: tokenHash,
+		ExpiresAt: time.Now().Add(s.refreshTokenTTL),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to store refresh token: %w", err)
+	}
+	return rawToken, nil
 }
 
 func (s authSupport) loadSession(ctx context.Context, u *user.User) (*Session, error) {

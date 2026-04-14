@@ -4,6 +4,7 @@ import appauth "github.com/getbud-co/bud2/backend/internal/app/auth"
 
 type authResponse struct {
 	AccessToken        string                 `json:"access_token,omitempty"`
+	RefreshToken       string                 `json:"refresh_token,omitempty"`
 	TokenType          string                 `json:"token_type,omitempty"`
 	User               userResponse           `json:"user"`
 	ActiveOrganization *organizationResponse  `json:"active_organization,omitempty"`

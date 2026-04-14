@@ -35,6 +35,15 @@ type OrganizationMembership struct {
 	DeletedAt       pgtype.Timestamptz
 }
 
+type RefreshToken struct {
+	ID        uuid.UUID
+	UserID    uuid.UUID
+	TokenHash string
+	ExpiresAt time.Time
+	RevokedAt pgtype.Timestamptz
+	CreatedAt time.Time
+}
+
 type User struct {
 	ID            uuid.UUID
 	Name          string

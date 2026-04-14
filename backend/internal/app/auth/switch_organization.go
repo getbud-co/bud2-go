@@ -20,16 +20,33 @@ type SwitchOrganizationCommand struct {
 }
 
 type SwitchOrganizationResult struct {
-	Token   string
-	Session Session
+	Token        string
+	RefreshToken string
+	Session      Session
 }
 
 type SwitchOrganizationUseCase struct {
 	support authSupport
 }
 
-func NewSwitchOrganizationUseCase(users user.Repository, memberships membership.Repository, organizations organization.Repository, issuer tokenIssuer, passwordHasher domainauth.PasswordHasher, logger *slog.Logger) *SwitchOrganizationUseCase {
-	return &SwitchOrganizationUseCase{support: newAuthSupport(users, memberships, organizations, issuer, passwordHasher, logger, 7*24*time.Hour)}
+func NewSwitchOrganizationUseCase(
+	users user.Repository,
+	memberships membership.Repository,
+	organizations organization.Repository,
+	issuer tokenIssuer,
+	passwordHasher domainauth.PasswordHasher,
+	refreshTokenRepo domainauth.RefreshTokenRepository,
+	tokenHasher domainauth.TokenHasher,
+	logger *slog.Logger,
+) *SwitchOrganizationUseCase {
+	return &SwitchOrganizationUseCase{support: newAuthSupport(
+		users, memberships, organizations,
+		issuer, passwordHasher,
+		refreshTokenRepo, tokenHasher,
+		logger,
+		15*time.Minute, // access token TTL
+		7*24*time.Hour, // refresh token TTL
+	)}
 }
 
 func (uc *SwitchOrganizationUseCase) Execute(ctx context.Context, claims domain.UserClaims, cmd SwitchOrganizationCommand) (*SwitchOrganizationResult, error) {
@@ -68,6 +85,10 @@ func (uc *SwitchOrganizationUseCase) Execute(ctx context.Context, claims domain.
 	if err != nil {
 		return nil, fmt.Errorf("failed to issue token: %w", err)
 	}
+	refreshToken, err := uc.support.issueRefreshToken(ctx, session.User.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to issue refresh token: %w", err)
+	}
 	session.User = setUserPasswordHash(&session.User, "")
-	return &SwitchOrganizationResult{Token: token, Session: *session}, nil
+	return &SwitchOrganizationResult{Token: token, RefreshToken: refreshToken, Session: *session}, nil
 }
