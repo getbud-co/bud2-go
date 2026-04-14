@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { saveBudSession, clearBudSession, type BudSession } from "@/lib/bud-token";
+import { saveBudSession, clearBudSession, BUD_REFRESH_TOKEN_COOKIE, type BudSession } from "@/lib/bud-token";
 import { cookies } from "next/headers";
-
-const BUD_REFRESH_TOKEN_COOKIE = "bud_refresh_token";
 
 export async function POST() {
   const cookieStore = await cookies();

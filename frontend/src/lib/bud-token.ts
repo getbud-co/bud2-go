@@ -2,7 +2,7 @@ import { decodeJwt } from "jose";
 import { cookies } from "next/headers";
 
 export const BUD_ACCESS_TOKEN_COOKIE = "bud_access_token";
-const BUD_REFRESH_TOKEN_COOKIE = "bud_refresh_token";
+export const BUD_REFRESH_TOKEN_COOKIE = "bud_refresh_token";
 const BUD_SESSION_COOKIE = "bud_auth_session";
 
 export interface BudUser {
