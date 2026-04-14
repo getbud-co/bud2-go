@@ -54,7 +54,23 @@ export async function getBudToken(): Promise<string> {
   const token = cookieStore.get(BUD_ACCESS_TOKEN_COOKIE)?.value;
 
   if (!token) {
+    const refreshed = await attemptTokenRefresh();
+    if (refreshed?.access_token) return refreshed.access_token;
     throw new UnauthorizedError();
+  }
+
+  // Proactively refresh if the JWT is expired or within 30 s of expiry.
+  try {
+    const { exp } = decodeJwt(token);
+    if (Date.now() >= ((exp ?? 0) * 1000) - 30_000) {
+      const refreshed = await attemptTokenRefresh();
+      if (refreshed?.access_token) return refreshed.access_token;
+      await clearBudSession();
+      throw new UnauthorizedError();
+    }
+  } catch (e) {
+    if (e instanceof UnauthorizedError) throw e;
+    // Malformed token — let backend reject it
   }
 
   return token;
