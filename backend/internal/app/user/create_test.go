@@ -19,14 +19,12 @@ import (
 )
 
 type testTxRepos struct {
-	orgRepo        organization.Repository
-	userRepo       usr.Repository
-	membershipRepo membership.Repository
+	orgRepo  organization.Repository
+	userRepo usr.Repository
 }
 
 func (r testTxRepos) Organizations() organization.Repository { return r.orgRepo }
 func (r testTxRepos) Users() usr.Repository                  { return r.userRepo }
-func (r testTxRepos) Memberships() membership.Repository     { return r.membershipRepo }
 
 type testTxManager struct {
 	repos     apptx.Repositories
@@ -46,24 +44,26 @@ func (m *testTxManager) WithTx(ctx context.Context, fn func(repos apptx.Reposito
 
 func TestCreateUseCase_Execute_Success_NewUser(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
 	organizations := new(mocks.OrganizationRepository)
 	txUsers := new(mocks.UserRepository)
-	txMemberships := new(mocks.MembershipRepository)
 	txOrganizations := new(mocks.OrganizationRepository)
 	hasher := new(mocks.PasswordHasher)
-	txm := &testTxManager{repos: testTxRepos{orgRepo: txOrganizations, userRepo: txUsers, membershipRepo: txMemberships}}
-	uc := NewCreateUseCase(users, memberships, organizations, txm, hasher, testutil.NewDiscardLogger())
+	txm := &testTxManager{repos: testTxRepos{orgRepo: txOrganizations, userRepo: txUsers}}
+	uc := NewCreateUseCase(users, organizations, txm, hasher, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	testOrg := fixtures.NewOrganization()
+	createdUser := fixtures.NewUserWithEmail("new@example.com")
+	createdUser.Memberships = []membership.Membership{{
+		OrganizationID: tenantID.UUID(),
+		Role:           membership.RoleAdmin,
+		Status:         membership.StatusActive,
+	}}
 
 	users.On("GetByEmail", mock.Anything, "new@example.com").Return(nil, usr.ErrNotFound)
 	organizations.On("GetByDomain", mock.Anything, "example.com").Return(testOrg, nil)
 	hasher.On("Hash", "password123").Return("hashed", nil)
-	txUsers.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewUserWithEmail("new@example.com"), nil)
-	txMemberships.On("GetByOrganizationAndUser", mock.Anything, tenantID.UUID(), mock.Anything).Return(nil, membership.ErrNotFound)
-	txMemberships.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewMembership(), nil)
+	txUsers.On("Create", mock.Anything, mock.Anything).Return(createdUser, nil)
 
 	result, err := uc.Execute(context.Background(), CreateCommand{
 		OrganizationID: tenantID, Name: "New User", Email: "new@example.com", Password: "password123", Role: "admin",
@@ -71,27 +71,30 @@ func TestCreateUseCase_Execute_Success_NewUser(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, "new@example.com", result.User.Email)
+	assert.Equal(t, "new@example.com", result.Email)
 	assert.True(t, txm.called)
 }
 
 func TestCreateUseCase_Execute_Success_ExistingUser(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
 	organizations := new(mocks.OrganizationRepository)
 	txUsers := new(mocks.UserRepository)
-	txMemberships := new(mocks.MembershipRepository)
 	txOrganizations := new(mocks.OrganizationRepository)
 	hasher := new(mocks.PasswordHasher)
-	txm := &testTxManager{repos: testTxRepos{orgRepo: txOrganizations, userRepo: txUsers, membershipRepo: txMemberships}}
-	uc := NewCreateUseCase(users, memberships, organizations, txm, hasher, testutil.NewDiscardLogger())
+	txm := &testTxManager{repos: testTxRepos{orgRepo: txOrganizations, userRepo: txUsers}}
+	uc := NewCreateUseCase(users, organizations, txm, hasher, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	existingUser := fixtures.NewUser()
+	updatedUser := fixtures.NewUser()
+	updatedUser.Memberships = []membership.Membership{{
+		OrganizationID: tenantID.UUID(),
+		Role:           membership.RoleAdmin,
+		Status:         membership.StatusActive,
+	}}
 
 	users.On("GetByEmail", mock.Anything, existingUser.Email).Return(existingUser, nil)
-	txMemberships.On("GetByOrganizationAndUser", mock.Anything, tenantID.UUID(), existingUser.ID).Return(nil, membership.ErrNotFound)
-	txMemberships.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewMembership(), nil)
+	txUsers.On("Update", mock.Anything, mock.Anything).Return(updatedUser, nil)
 
 	result, err := uc.Execute(context.Background(), CreateCommand{
 		OrganizationID: tenantID, Name: existingUser.Name, Email: existingUser.Email, Password: "password123", Role: "admin",
@@ -107,20 +110,18 @@ func TestCreateUseCase_Execute_Success_ExistingUser(t *testing.T) {
 
 func TestCreateUseCase_Execute_MembershipAlreadyExists(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
 	organizations := new(mocks.OrganizationRepository)
 	txUsers := new(mocks.UserRepository)
-	txMemberships := new(mocks.MembershipRepository)
 	txOrganizations := new(mocks.OrganizationRepository)
 	hasher := new(mocks.PasswordHasher)
-	txm := &testTxManager{repos: testTxRepos{orgRepo: txOrganizations, userRepo: txUsers, membershipRepo: txMemberships}}
-	uc := NewCreateUseCase(users, memberships, organizations, txm, hasher, testutil.NewDiscardLogger())
+	txm := &testTxManager{repos: testTxRepos{orgRepo: txOrganizations, userRepo: txUsers}}
+	uc := NewCreateUseCase(users, organizations, txm, hasher, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
-	existingUser := fixtures.NewUser()
+	existingUser := fixtures.NewUserWithMembership()
+	existingUser.Memberships[0].OrganizationID = tenantID.UUID()
 
 	users.On("GetByEmail", mock.Anything, existingUser.Email).Return(existingUser, nil)
-	txMemberships.On("GetByOrganizationAndUser", mock.Anything, tenantID.UUID(), existingUser.ID).Return(fixtures.NewMembership(), nil)
 
 	result, err := uc.Execute(context.Background(), CreateCommand{
 		OrganizationID: tenantID, Name: existingUser.Name, Email: existingUser.Email, Password: "password123", Role: "admin",
@@ -133,10 +134,9 @@ func TestCreateUseCase_Execute_MembershipAlreadyExists(t *testing.T) {
 
 func TestCreateUseCase_Execute_InvalidRole(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
 	organizations := new(mocks.OrganizationRepository)
 	hasher := new(mocks.PasswordHasher)
-	uc := NewCreateUseCase(users, memberships, organizations, nil, hasher, testutil.NewDiscardLogger())
+	uc := NewCreateUseCase(users, organizations, nil, hasher, testutil.NewDiscardLogger())
 
 	result, err := uc.Execute(context.Background(), CreateCommand{
 		OrganizationID: fixtures.NewTestTenantID(), Name: "Test", Email: "test@example.com", Password: "password123", Role: "invalid",
@@ -148,10 +148,9 @@ func TestCreateUseCase_Execute_InvalidRole(t *testing.T) {
 
 func TestCreateUseCase_Execute_EmailDomainOrgNotFound(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
 	organizations := new(mocks.OrganizationRepository)
 	hasher := new(mocks.PasswordHasher)
-	uc := NewCreateUseCase(users, memberships, organizations, nil, hasher, testutil.NewDiscardLogger())
+	uc := NewCreateUseCase(users, organizations, nil, hasher, testutil.NewDiscardLogger())
 
 	users.On("GetByEmail", mock.Anything, "test@unknown.com").Return(nil, usr.ErrNotFound)
 	organizations.On("GetByDomain", mock.Anything, "unknown.com").Return(nil, organization.ErrNotFound)
@@ -166,10 +165,9 @@ func TestCreateUseCase_Execute_EmailDomainOrgNotFound(t *testing.T) {
 
 func TestCreateUseCase_Execute_PasswordHashError(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
 	organizations := new(mocks.OrganizationRepository)
 	hasher := new(mocks.PasswordHasher)
-	uc := NewCreateUseCase(users, memberships, organizations, nil, hasher, testutil.NewDiscardLogger())
+	uc := NewCreateUseCase(users, organizations, nil, hasher, testutil.NewDiscardLogger())
 
 	users.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, usr.ErrNotFound)
 	organizations.On("GetByDomain", mock.Anything, "example.com").Return(fixtures.NewOrganization(), nil)
@@ -185,14 +183,12 @@ func TestCreateUseCase_Execute_PasswordHashError(t *testing.T) {
 
 func TestCreateUseCase_Execute_UserCreateError(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
 	organizations := new(mocks.OrganizationRepository)
 	txUsers := new(mocks.UserRepository)
-	txMemberships := new(mocks.MembershipRepository)
 	txOrganizations := new(mocks.OrganizationRepository)
 	hasher := new(mocks.PasswordHasher)
-	txm := &testTxManager{repos: testTxRepos{orgRepo: txOrganizations, userRepo: txUsers, membershipRepo: txMemberships}}
-	uc := NewCreateUseCase(users, memberships, organizations, txm, hasher, testutil.NewDiscardLogger())
+	txm := &testTxManager{repos: testTxRepos{orgRepo: txOrganizations, userRepo: txUsers}}
+	uc := NewCreateUseCase(users, organizations, txm, hasher, testutil.NewDiscardLogger())
 
 	users.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, usr.ErrNotFound)
 	organizations.On("GetByDomain", mock.Anything, "example.com").Return(fixtures.NewOrganization(), nil)
@@ -210,10 +206,9 @@ func TestCreateUseCase_Execute_UserCreateError(t *testing.T) {
 
 func TestCreateUseCase_Execute_GetByEmailError(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
 	organizations := new(mocks.OrganizationRepository)
 	hasher := new(mocks.PasswordHasher)
-	uc := NewCreateUseCase(users, memberships, organizations, nil, hasher, testutil.NewDiscardLogger())
+	uc := NewCreateUseCase(users, organizations, nil, hasher, testutil.NewDiscardLogger())
 
 	users.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, errors.New("db error"))
 
@@ -227,11 +222,10 @@ func TestCreateUseCase_Execute_GetByEmailError(t *testing.T) {
 
 func TestCreateUseCase_Execute_TransactionError(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
 	organizations := new(mocks.OrganizationRepository)
 	hasher := new(mocks.PasswordHasher)
 	txm := &testTxManager{returnErr: errors.New("tx error")}
-	uc := NewCreateUseCase(users, memberships, organizations, txm, hasher, testutil.NewDiscardLogger())
+	uc := NewCreateUseCase(users, organizations, txm, hasher, testutil.NewDiscardLogger())
 
 	users.On("GetByEmail", mock.Anything, "new@example.com").Return(fixtures.NewUserWithEmail("new@example.com"), nil)
 

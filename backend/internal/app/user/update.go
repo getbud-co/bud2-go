@@ -9,7 +9,6 @@ import (
 
 	apptx "github.com/getbud-co/bud2/backend/internal/app/tx"
 	"github.com/getbud-co/bud2/backend/internal/domain"
-	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 	usr "github.com/getbud-co/bud2/backend/internal/domain/user"
 )
 
@@ -18,31 +17,27 @@ type UpdateCommand struct {
 	ID             uuid.UUID
 	Name           string
 	Email          string
-	Role           string
 	Status         string
 }
 
 type UpdateUseCase struct {
-	users       usr.Repository
-	memberships membership.Repository
-	txm         apptx.Manager
-	logger      *slog.Logger
+	users  usr.Repository
+	txm    apptx.Manager
+	logger *slog.Logger
 }
 
-func NewUpdateUseCase(users usr.Repository, memberships membership.Repository, txm apptx.Manager, logger *slog.Logger) *UpdateUseCase {
-	return &UpdateUseCase{users: users, memberships: memberships, txm: txm, logger: logger}
+func NewUpdateUseCase(users usr.Repository, txm apptx.Manager, logger *slog.Logger) *UpdateUseCase {
+	return &UpdateUseCase{users: users, txm: txm, logger: logger}
 }
 
-func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*Member, error) {
+func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*usr.User, error) {
 	var updatedUser *usr.User
-	var updatedMembership *membership.Membership
 	err := uc.txm.WithTx(ctx, func(repos apptx.Repositories) error {
 		u, txErr := repos.Users().GetByID(ctx, cmd.ID)
 		if txErr != nil {
 			return txErr
 		}
-		m, txErr := repos.Memberships().GetByOrganizationAndUser(ctx, cmd.OrganizationID.UUID(), cmd.ID)
-		if txErr != nil {
+		if _, txErr = u.MembershipForOrganization(cmd.OrganizationID.UUID()); txErr != nil {
 			return txErr
 		}
 
@@ -58,25 +53,17 @@ func (uc *UpdateUseCase) Execute(ctx context.Context, cmd UpdateCommand) (*Membe
 
 		u.Name = cmd.Name
 		u.Email = cmd.Email
-		m.Role = membership.Role(cmd.Role)
-		m.Status = membership.Status(cmd.Status)
+		u.Status = usr.Status(cmd.Status)
 
 		if txErr = u.Validate(); txErr != nil {
 			return txErr
 		}
-		if txErr = m.Validate(); txErr != nil {
-			return txErr
-		}
 
 		updatedUser, txErr = repos.Users().Update(ctx, u)
-		if txErr != nil {
-			return txErr
-		}
-		updatedMembership, txErr = repos.Memberships().Update(ctx, m)
 		return txErr
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &Member{User: *updatedUser, OrganizationID: updatedMembership.OrganizationID, MembershipRole: updatedMembership.Role, MembershipStatus: updatedMembership.Status}, nil
+	return updatedUser, nil
 }

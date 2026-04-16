@@ -17,6 +17,10 @@ type createRequest struct {
 type updateRequest struct {
 	Name   string `json:"name" validate:"required,min=2,max=100"`
 	Email  string `json:"email" validate:"required,email"`
+	Status string `json:"status" validate:"required,oneof=active inactive"`
+}
+
+type updateMembershipRequest struct {
 	Role   string `json:"role" validate:"required,oneof=admin manager collaborator"`
 	Status string `json:"status" validate:"required,oneof=invited active inactive"`
 }
@@ -37,6 +41,14 @@ func (r updateRequest) toCommand(organizationID domain.TenantID, id uuid.UUID) u
 		ID:             id,
 		Name:           r.Name,
 		Email:          r.Email,
+		Status:         r.Status,
+	}
+}
+
+func (r updateMembershipRequest) toCommand(organizationID domain.TenantID, id uuid.UUID) user.UpdateMembershipCommand {
+	return user.UpdateMembershipCommand{
+		OrganizationID: organizationID,
+		ID:             id,
 		Role:           r.Role,
 		Status:         r.Status,
 	}

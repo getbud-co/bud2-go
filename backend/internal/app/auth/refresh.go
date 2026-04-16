@@ -7,7 +7,6 @@ import (
 	"time"
 
 	domainauth "github.com/getbud-co/bud2/backend/internal/domain/auth"
-	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 	"github.com/getbud-co/bud2/backend/internal/domain/organization"
 	"github.com/getbud-co/bud2/backend/internal/domain/user"
 )
@@ -28,7 +27,6 @@ type RefreshUseCase struct {
 
 func NewRefreshUseCase(
 	users user.Repository,
-	memberships membership.Repository,
 	organizations organization.Repository,
 	issuer tokenIssuer,
 	passwordHasher domainauth.PasswordHasher,
@@ -37,7 +35,7 @@ func NewRefreshUseCase(
 	logger *slog.Logger,
 ) *RefreshUseCase {
 	return &RefreshUseCase{support: newAuthSupport(
-		users, memberships, organizations,
+		users, organizations,
 		issuer, passwordHasher,
 		refreshTokenRepo, tokenHasher,
 		logger,

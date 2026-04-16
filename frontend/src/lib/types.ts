@@ -425,13 +425,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List members from active organization */
+        /** List users from active organization */
         get: {
             parameters: {
                 query?: {
                     page?: number;
                     size?: number;
-                    status?: "invited" | "active" | "inactive";
+                    status?: "active" | "inactive";
                 };
                 header?: never;
                 path?: never;
@@ -451,7 +451,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create or invite user to active organization */
+        /** Create user in active organization */
         post: {
             parameters: {
                 query?: never;
@@ -491,7 +491,7 @@ export interface paths {
             };
             cookie?: never;
         };
-        /** Get user membership in active organization */
+        /** Get user from active organization */
         get: {
             parameters: {
                 query?: never;
@@ -514,7 +514,7 @@ export interface paths {
                 };
             };
         };
-        /** Update user membership in active organization */
+        /** Update user in active organization */
         put: {
             parameters: {
                 query?: never;
@@ -537,6 +537,72 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["User"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/membership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Get user membership in active organization */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Membership"];
+                    };
+                };
+            };
+        };
+        /** Update user membership in active organization */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateMembershipRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Membership"];
                     };
                 };
             };
@@ -673,10 +739,28 @@ export interface components {
             /** Format: email */
             email: string;
             /** @enum {string} */
+            status: "active" | "inactive";
+            is_system_admin: boolean;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        Membership: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organization_id: string;
+            /** Format: uuid */
+            user_id: string;
+            /** @enum {string} */
             role: "admin" | "manager" | "collaborator";
             /** @enum {string} */
             status: "invited" | "active" | "inactive";
-            is_system_admin: boolean;
+            /** Format: uuid */
+            invited_by_user_id?: string;
+            /** Format: date-time */
+            joined_at?: string;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -700,6 +784,10 @@ export interface components {
             name: string;
             /** Format: email */
             email: string;
+            /** @enum {string} */
+            status: "active" | "inactive";
+        };
+        UpdateMembershipRequest: {
             /** @enum {string} */
             role: "admin" | "manager" | "collaborator";
             /** @enum {string} */

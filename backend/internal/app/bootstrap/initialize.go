@@ -103,22 +103,22 @@ func (uc *UseCase) Execute(ctx context.Context, cmd Command) (*Result, error) {
 			Status:        user.StatusActive,
 			IsSystemAdmin: false,
 		}
+		if txErr = admin.AddMembership(membership.Membership{
+			OrganizationID: createdOrg.ID,
+			Role:           membership.RoleAdmin,
+			Status:         membership.StatusActive,
+		}); txErr != nil {
+			return txErr
+		}
 		if txErr = admin.Validate(); txErr != nil {
 			uc.logger.Warn("admin validation failed", "error", txErr, "email", cmd.AdminEmail)
 			return txErr
 		}
 
 		createdAdmin, txErr = repos.Users().Create(ctx, admin)
-		if txErr != nil {
-			return txErr
+		if txErr == nil {
+			createdMembership, txErr = createdAdmin.MembershipForOrganization(createdOrg.ID)
 		}
-
-		createdMembership, txErr = repos.Memberships().Create(ctx, &membership.Membership{
-			OrganizationID: createdOrg.ID,
-			UserID:         createdAdmin.ID,
-			Role:           membership.RoleAdmin,
-			Status:         membership.StatusActive,
-		})
 		return txErr
 	})
 	if err != nil {

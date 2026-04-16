@@ -1,7 +1,6 @@
 package membership
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -61,34 +60,6 @@ func (m *Membership) Validate() error {
 		return fmt.Errorf("%w: status must be invited, active or inactive", domain.ErrValidation)
 	}
 	return nil
-}
-
-type ListByOrganizationFilter struct {
-	OrganizationID uuid.UUID
-	Status         *Status
-	Page           int
-	Size           int
-}
-
-type ListByUserFilter struct {
-	UserID uuid.UUID
-	Status *Status
-	Page   int
-	Size   int
-}
-
-type ListResult struct {
-	Memberships []Membership
-	Total       int64
-}
-
-type Repository interface {
-	Create(ctx context.Context, membership *Membership) (*Membership, error)
-	GetByID(ctx context.Context, id uuid.UUID) (*Membership, error)
-	GetByOrganizationAndUser(ctx context.Context, organizationID, userID uuid.UUID) (*Membership, error)
-	ListByOrganization(ctx context.Context, filter ListByOrganizationFilter) (ListResult, error)
-	ListByUser(ctx context.Context, filter ListByUserFilter) (ListResult, error)
-	Update(ctx context.Context, membership *Membership) (*Membership, error)
 }
 
 var (

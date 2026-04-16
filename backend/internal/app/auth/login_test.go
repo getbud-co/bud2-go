@@ -11,63 +11,23 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	domainauth "github.com/getbud-co/bud2/backend/internal/domain/auth"
-	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 	"github.com/getbud-co/bud2/backend/internal/domain/organization"
 	"github.com/getbud-co/bud2/backend/internal/domain/user"
 	infraauth "github.com/getbud-co/bud2/backend/internal/infra/auth"
+	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
 	"github.com/getbud-co/bud2/backend/internal/test/mocks"
 	"github.com/getbud-co/bud2/backend/internal/test/testutil"
 )
 
-type mockMembershipRepository struct{ mock.Mock }
-
-func (m *mockMembershipRepository) Create(ctx context.Context, member *membership.Membership) (*membership.Membership, error) {
-	args := m.Called(ctx, member)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*membership.Membership), args.Error(1)
-}
-func (m *mockMembershipRepository) GetByID(ctx context.Context, id uuid.UUID) (*membership.Membership, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*membership.Membership), args.Error(1)
-}
-func (m *mockMembershipRepository) GetByOrganizationAndUser(ctx context.Context, organizationID, userID uuid.UUID) (*membership.Membership, error) {
-	args := m.Called(ctx, organizationID, userID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*membership.Membership), args.Error(1)
-}
-func (m *mockMembershipRepository) ListByOrganization(ctx context.Context, filter membership.ListByOrganizationFilter) (membership.ListResult, error) {
-	args := m.Called(ctx, filter)
-	return args.Get(0).(membership.ListResult), args.Error(1)
-}
-func (m *mockMembershipRepository) ListByUser(ctx context.Context, filter membership.ListByUserFilter) (membership.ListResult, error) {
-	args := m.Called(ctx, filter)
-	return args.Get(0).(membership.ListResult), args.Error(1)
-}
-func (m *mockMembershipRepository) Update(ctx context.Context, member *membership.Membership) (*membership.Membership, error) {
-	args := m.Called(ctx, member)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*membership.Membership), args.Error(1)
-}
-
 // newLoginUC is a helper to construct LoginUseCase with the standard test dependencies.
 func newLoginUC(
 	users *mocks.UserRepository,
-	memberships *mockMembershipRepository,
 	organizations *mocks.OrganizationRepository,
 	rtRepo *mocks.RefreshTokenRepository,
 	tokenHasher *mocks.TokenHasher,
 ) *LoginUseCase {
 	return NewLoginUseCase(
-		users, memberships, organizations,
+		users, organizations,
 		infraauth.NewTokenIssuer("test-secret"),
 		infraauth.NewDefaultBcryptPasswordHasher(),
 		rtRepo, tokenHasher,
@@ -90,21 +50,21 @@ func setupRefreshTokenMocks(rtRepo *mocks.RefreshTokenRepository, tokenHasher *m
 
 func TestLoginUseCase_Execute_Success(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mockMembershipRepository)
 	organizations := new(mocks.OrganizationRepository)
 	rtRepo := new(mocks.RefreshTokenRepository)
 	tokenHasher := new(mocks.TokenHasher)
 
 	passwordHasher := infraauth.NewDefaultBcryptPasswordHasher()
 	hash, _ := passwordHasher.Hash("password123")
-	testUser := &user.User{ID: uuid.New(), Name: "Admin", Email: "admin@example.com", PasswordHash: hash, Status: user.StatusActive}
+	testUser := fixtures.NewUserWithMembership()
+	testUser.PasswordHash = hash
+	testUser.Email = "admin@example.com"
 	testOrg := &organization.Organization{ID: uuid.New(), Name: "Example", Domain: "example.com", Workspace: "example", Status: organization.StatusActive}
-	testMembership := membership.Membership{ID: uuid.New(), OrganizationID: testOrg.ID, UserID: testUser.ID, Role: membership.RoleAdmin, Status: membership.StatusActive, CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	testUser.Memberships[0].OrganizationID = testOrg.ID
 
-	uc := newLoginUC(users, memberships, organizations, rtRepo, tokenHasher)
+	uc := newLoginUC(users, organizations, rtRepo, tokenHasher)
 
 	users.On("GetByEmail", mock.Anything, testUser.Email).Return(testUser, nil)
-	memberships.On("ListByUser", mock.Anything, mock.Anything).Return(membership.ListResult{Memberships: []membership.Membership{testMembership}, Total: 1}, nil)
 	organizations.On("GetByID", mock.Anything, testOrg.ID).Return(testOrg, nil)
 	setupRefreshTokenMocks(rtRepo, tokenHasher, testUser.ID)
 
@@ -120,7 +80,7 @@ func TestLoginUseCase_Execute_Success(t *testing.T) {
 
 func TestLoginUseCase_Execute_UserNotFound(t *testing.T) {
 	users := new(mocks.UserRepository)
-	uc := newLoginUC(users, new(mockMembershipRepository), new(mocks.OrganizationRepository), new(mocks.RefreshTokenRepository), new(mocks.TokenHasher))
+	uc := newLoginUC(users, new(mocks.OrganizationRepository), new(mocks.RefreshTokenRepository), new(mocks.TokenHasher))
 	users.On("GetByEmail", mock.Anything, "missing@example.com").Return(nil, user.ErrNotFound)
 
 	result, err := uc.Execute(context.Background(), LoginCommand{Email: "missing@example.com", Password: "password123"})
@@ -130,14 +90,12 @@ func TestLoginUseCase_Execute_UserNotFound(t *testing.T) {
 
 func TestLoginUseCase_Execute_NoOrganizations(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mockMembershipRepository)
 	passwordHasher := infraauth.NewDefaultBcryptPasswordHasher()
 	hash, _ := passwordHasher.Hash("password123")
 	testUser := &user.User{ID: uuid.New(), Name: "Admin", Email: "admin@example.com", PasswordHash: hash, Status: user.StatusActive}
 
-	uc := newLoginUC(users, memberships, new(mocks.OrganizationRepository), new(mocks.RefreshTokenRepository), new(mocks.TokenHasher))
+	uc := newLoginUC(users, new(mocks.OrganizationRepository), new(mocks.RefreshTokenRepository), new(mocks.TokenHasher))
 	users.On("GetByEmail", mock.Anything, testUser.Email).Return(testUser, nil)
-	memberships.On("ListByUser", mock.Anything, mock.Anything).Return(membership.ListResult{}, nil)
 
 	result, err := uc.Execute(context.Background(), LoginCommand{Email: testUser.Email, Password: "password123"})
 	assert.ErrorIs(t, err, ErrNoOrganizations)
@@ -146,7 +104,7 @@ func TestLoginUseCase_Execute_NoOrganizations(t *testing.T) {
 
 func TestLoginUseCase_Execute_RepositoryError(t *testing.T) {
 	users := new(mocks.UserRepository)
-	uc := newLoginUC(users, new(mockMembershipRepository), new(mocks.OrganizationRepository), new(mocks.RefreshTokenRepository), new(mocks.TokenHasher))
+	uc := newLoginUC(users, new(mocks.OrganizationRepository), new(mocks.RefreshTokenRepository), new(mocks.TokenHasher))
 	users.On("GetByEmail", mock.Anything, "admin@example.com").Return(nil, errors.New("db error"))
 
 	result, err := uc.Execute(context.Background(), LoginCommand{Email: "admin@example.com", Password: "password123"})

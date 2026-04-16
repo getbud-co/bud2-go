@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/getbud-co/bud2/backend/internal/domain"
+	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 )
 
 type Status string
@@ -29,6 +30,7 @@ type User struct {
 	PasswordHash  string
 	Status        Status
 	IsSystemAdmin bool
+	Memberships   []membership.Membership
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
@@ -42,6 +44,11 @@ func (u *User) Validate() error {
 	}
 	if !u.Status.IsValid() {
 		return fmt.Errorf("%w: status must be active or inactive", domain.ErrValidation)
+	}
+	for i := range u.Memberships {
+		if err := u.Memberships[i].Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -63,7 +70,38 @@ type Repository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	List(ctx context.Context, filter ListFilter) (ListResult, error)
+	ListByOrganization(ctx context.Context, organizationID uuid.UUID, status *Status, page, size int) (ListResult, error)
 	Update(ctx context.Context, user *User) (*User, error)
+}
+
+func (u *User) MembershipForOrganization(organizationID uuid.UUID) (*membership.Membership, error) {
+	for i := range u.Memberships {
+		if u.Memberships[i].OrganizationID == organizationID {
+			return &u.Memberships[i], nil
+		}
+	}
+	return nil, membership.ErrNotFound
+}
+
+// EnsureAccessibleInOrganization makes the tenant-scope check explicit for
+// use cases that return a User but must still enforce organization isolation.
+func (u *User) EnsureAccessibleInOrganization(organizationID uuid.UUID) error {
+	_, err := u.MembershipForOrganization(organizationID)
+	return err
+}
+
+func (u *User) AddMembership(m membership.Membership) error {
+	if m.UserID != uuid.Nil && m.UserID != u.ID {
+		return fmt.Errorf("%w: membership user_id does not match user", domain.ErrValidation)
+	}
+	if _, err := u.MembershipForOrganization(m.OrganizationID); err == nil {
+		return membership.ErrAlreadyExists
+	} else if !errors.Is(err, membership.ErrNotFound) {
+		return err
+	}
+	m.UserID = u.ID
+	u.Memberships = append(u.Memberships, m)
+	return nil
 }
 
 var (

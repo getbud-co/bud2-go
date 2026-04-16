@@ -8,7 +8,6 @@ import (
 	"time"
 
 	domainauth "github.com/getbud-co/bud2/backend/internal/domain/auth"
-	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 	"github.com/getbud-co/bud2/backend/internal/domain/organization"
 	"github.com/getbud-co/bud2/backend/internal/domain/user"
 )
@@ -36,7 +35,6 @@ type LoginUseCase struct {
 
 func NewLoginUseCase(
 	users user.Repository,
-	memberships membership.Repository,
 	organizations organization.Repository,
 	issuer tokenIssuer,
 	passwordHasher domainauth.PasswordHasher,
@@ -45,7 +43,7 @@ func NewLoginUseCase(
 	logger *slog.Logger,
 ) *LoginUseCase {
 	return &LoginUseCase{support: newAuthSupport(
-		users, memberships, organizations,
+		users, organizations,
 		issuer, passwordHasher,
 		refreshTokenRepo, tokenHasher,
 		logger,

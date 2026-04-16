@@ -26,18 +26,17 @@ type CreateCommand struct {
 
 type CreateUseCase struct {
 	users          usr.Repository
-	memberships    membership.Repository
 	organizations  organization.Repository
 	txm            apptx.Manager
 	passwordHasher domainauth.PasswordHasher
 	logger         *slog.Logger
 }
 
-func NewCreateUseCase(users usr.Repository, memberships membership.Repository, organizations organization.Repository, txm apptx.Manager, passwordHasher domainauth.PasswordHasher, logger *slog.Logger) *CreateUseCase {
-	return &CreateUseCase{users: users, memberships: memberships, organizations: organizations, txm: txm, passwordHasher: passwordHasher, logger: logger}
+func NewCreateUseCase(users usr.Repository, organizations organization.Repository, txm apptx.Manager, passwordHasher domainauth.PasswordHasher, logger *slog.Logger) *CreateUseCase {
+	return &CreateUseCase{users: users, organizations: organizations, txm: txm, passwordHasher: passwordHasher, logger: logger}
 }
 
-func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*Member, error) {
+func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*usr.User, error) {
 	role := membership.Role(cmd.Role)
 	if !role.IsValid() {
 		return nil, domain.ErrValidation
@@ -61,40 +60,59 @@ func (uc *CreateUseCase) Execute(ctx context.Context, cmd CreateCommand) (*Membe
 		}
 	}
 
-	var createdMembership *membership.Membership
 	err = uc.txm.WithTx(ctx, func(repos apptx.Repositories) error {
 		var txErr error
 		if targetUser == nil {
-			targetUser, txErr = repos.Users().Create(ctx, &usr.User{
+			targetUser = &usr.User{
 				ID:            uuid.New(),
 				Name:          cmd.Name,
 				Email:         cmd.Email,
 				PasswordHash:  passwordHash,
 				Status:        usr.StatusActive,
 				IsSystemAdmin: false,
+			}
+			if txErr = targetUser.AddMembership(membership.Membership{
+				OrganizationID: cmd.OrganizationID.UUID(),
+				Role:           role,
+				Status:         membership.StatusActive,
+			}); txErr != nil {
+				return txErr
+			}
+			targetUser, txErr = repos.Users().Create(ctx, &usr.User{
+				ID:            targetUser.ID,
+				Name:          targetUser.Name,
+				Email:         targetUser.Email,
+				PasswordHash:  targetUser.PasswordHash,
+				Status:        targetUser.Status,
+				IsSystemAdmin: targetUser.IsSystemAdmin,
+				Memberships:   targetUser.Memberships,
 			})
 			if txErr != nil {
 				return txErr
 			}
+		} else {
+			if _, txErr = targetUser.MembershipForOrganization(cmd.OrganizationID.UUID()); txErr == nil {
+				return membership.ErrAlreadyExists
+			} else if !errors.Is(txErr, membership.ErrNotFound) {
+				return txErr
+			}
+			if txErr = targetUser.AddMembership(membership.Membership{
+				OrganizationID: cmd.OrganizationID.UUID(),
+				Role:           role,
+				Status:         membership.StatusActive,
+			}); txErr != nil {
+				return txErr
+			}
+			targetUser, txErr = repos.Users().Update(ctx, targetUser)
+			if txErr != nil {
+				return txErr
+			}
 		}
-
-		if _, txErr = repos.Memberships().GetByOrganizationAndUser(ctx, cmd.OrganizationID.UUID(), targetUser.ID); txErr == nil {
-			return membership.ErrAlreadyExists
-		} else if !errors.Is(txErr, membership.ErrNotFound) {
-			return txErr
-		}
-
-		createdMembership, txErr = repos.Memberships().Create(ctx, &membership.Membership{
-			OrganizationID: cmd.OrganizationID.UUID(),
-			UserID:         targetUser.ID,
-			Role:           role,
-			Status:         membership.StatusActive,
-		})
-		return txErr
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return &Member{User: *targetUser, OrganizationID: createdMembership.OrganizationID, MembershipRole: createdMembership.Role, MembershipStatus: createdMembership.Status}, nil
+	return targetUser, nil
 }

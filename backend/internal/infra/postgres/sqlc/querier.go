@@ -12,12 +12,9 @@ import (
 
 type Querier interface {
 	CountOrganizationMemberships(ctx context.Context, organizationID uuid.UUID) (int64, error)
-	CountOrganizationMembershipsByStatus(ctx context.Context, arg CountOrganizationMembershipsByStatusParams) (int64, error)
 	CountOrganizations(ctx context.Context) (int64, error)
 	CountOrganizationsByStatus(ctx context.Context, status string) (int64, error)
 	CountSearchUsers(ctx context.Context, name string) (int64, error)
-	CountUserMemberships(ctx context.Context, userID uuid.UUID) (int64, error)
-	CountUserMembershipsByStatus(ctx context.Context, arg CountUserMembershipsByStatusParams) (int64, error)
 	CountUsers(ctx context.Context) (int64, error)
 	CountUsersByStatus(ctx context.Context, status string) (int64, error)
 	CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (CreateOrganizationRow, error)
@@ -27,24 +24,19 @@ type Querier interface {
 	GetOrganizationByDomain(ctx context.Context, lower string) (GetOrganizationByDomainRow, error)
 	GetOrganizationByID(ctx context.Context, id uuid.UUID) (GetOrganizationByIDRow, error)
 	GetOrganizationByWorkspace(ctx context.Context, workspace string) (GetOrganizationByWorkspaceRow, error)
-	GetOrganizationMembershipByID(ctx context.Context, id uuid.UUID) (GetOrganizationMembershipByIDRow, error)
-	GetOrganizationMembershipByOrganizationAndUser(ctx context.Context, arg GetOrganizationMembershipByOrganizationAndUserParams) (GetOrganizationMembershipByOrganizationAndUserRow, error)
 	GetRefreshTokenByTokenHash(ctx context.Context, tokenHash string) (RefreshToken, error)
 	GetUserByEmail(ctx context.Context, lower string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
 	ListOrganizationMemberships(ctx context.Context, arg ListOrganizationMembershipsParams) ([]ListOrganizationMembershipsRow, error)
-	ListOrganizationMembershipsByStatus(ctx context.Context, arg ListOrganizationMembershipsByStatusParams) ([]ListOrganizationMembershipsByStatusRow, error)
 	ListOrganizations(ctx context.Context, arg ListOrganizationsParams) ([]ListOrganizationsRow, error)
 	ListOrganizationsByStatus(ctx context.Context, arg ListOrganizationsByStatusParams) ([]ListOrganizationsByStatusRow, error)
 	ListUserMemberships(ctx context.Context, arg ListUserMembershipsParams) ([]ListUserMembershipsRow, error)
-	ListUserMembershipsByStatus(ctx context.Context, arg ListUserMembershipsByStatusParams) ([]ListUserMembershipsByStatusRow, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
 	ListUsersByStatus(ctx context.Context, arg ListUsersByStatusParams) ([]ListUsersByStatusRow, error)
 	RevokeAllRefreshTokensByUserID(ctx context.Context, userID uuid.UUID) error
 	RevokeRefreshToken(ctx context.Context, id uuid.UUID) error
 	SearchUsers(ctx context.Context, arg SearchUsersParams) ([]SearchUsersRow, error)
 	SoftDeleteOrganization(ctx context.Context, id uuid.UUID) error
-	SoftDeleteOrganizationMembership(ctx context.Context, id uuid.UUID) error
 	SoftDeleteUser(ctx context.Context, id uuid.UUID) error
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (UpdateOrganizationRow, error)
 	UpdateOrganizationMembership(ctx context.Context, arg UpdateOrganizationMembershipParams) (UpdateOrganizationMembershipRow, error)

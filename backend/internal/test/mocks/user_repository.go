@@ -42,6 +42,11 @@ func (m *UserRepository) List(ctx context.Context, filter user.ListFilter) (user
 	return args.Get(0).(user.ListResult), args.Error(1)
 }
 
+func (m *UserRepository) ListByOrganization(ctx context.Context, organizationID uuid.UUID, status *user.Status, page, size int) (user.ListResult, error) {
+	args := m.Called(ctx, organizationID, status, page, size)
+	return args.Get(0).(user.ListResult), args.Error(1)
+}
+
 func (m *UserRepository) Update(ctx context.Context, u *user.User) (*user.User, error) {
 	args := m.Called(ctx, u)
 	if args.Get(0) == nil {

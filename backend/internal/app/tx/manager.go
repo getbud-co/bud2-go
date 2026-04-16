@@ -4,7 +4,6 @@ package tx
 import (
 	"context"
 
-	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 	"github.com/getbud-co/bud2/backend/internal/domain/organization"
 	"github.com/getbud-co/bud2/backend/internal/domain/user"
 )
@@ -12,7 +11,6 @@ import (
 type Repositories interface {
 	Organizations() organization.Repository
 	Users() user.Repository
-	Memberships() membership.Repository
 }
 
 type Manager interface {

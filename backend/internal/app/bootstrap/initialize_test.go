@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	apptx "github.com/getbud-co/bud2/backend/internal/app/tx"
-	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 	"github.com/getbud-co/bud2/backend/internal/domain/organization"
 	"github.com/getbud-co/bud2/backend/internal/domain/user"
 	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
@@ -18,25 +17,22 @@ import (
 )
 
 type mockTxManager struct {
-	orgRepo        *mocks.OrganizationRepository
-	userRepo       *mocks.UserRepository
-	membershipRepo *mocks.MembershipRepository
+	orgRepo  *mocks.OrganizationRepository
+	userRepo *mocks.UserRepository
 }
 
 type mockTxRepos struct {
-	orgRepo        organization.Repository
-	userRepo       user.Repository
-	membershipRepo membership.Repository
+	orgRepo  organization.Repository
+	userRepo user.Repository
 }
 
 func (m mockTxRepos) Organizations() organization.Repository { return m.orgRepo }
 func (m mockTxRepos) Users() user.Repository                 { return m.userRepo }
-func (m mockTxRepos) Memberships() membership.Repository     { return m.membershipRepo }
 
 var _ apptx.Repositories = mockTxRepos{}
 
 func (m *mockTxManager) WithTx(ctx context.Context, fn func(repos apptx.Repositories) error) error {
-	return fn(mockTxRepos{orgRepo: m.orgRepo, userRepo: m.userRepo, membershipRepo: m.membershipRepo})
+	return fn(mockTxRepos{orgRepo: m.orgRepo, userRepo: m.userRepo})
 }
 
 func newTestCommand() Command {
@@ -54,22 +50,19 @@ func TestUseCase_Execute_Success(t *testing.T) {
 	orgRepo := new(mocks.OrganizationRepository)
 	txOrgRepo := new(mocks.OrganizationRepository)
 	txUserRepo := new(mocks.UserRepository)
-	txMembershipRepo := new(mocks.MembershipRepository)
 	issuer := new(mocks.TokenIssuer)
 	hasher := new(mocks.PasswordHasher)
-	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo, membershipRepo: txMembershipRepo}
+	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo}
 
 	uc := NewUseCase(orgRepo, txm, issuer, hasher, testutil.NewDiscardLogger())
 
 	createdOrg := fixtures.NewOrganization()
-	createdUser := fixtures.NewUser()
-	createdMembership := fixtures.NewMembership()
+	createdUser := fixtures.NewUserWithMembership()
 
 	orgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
 	hasher.On("Hash", "password123").Return("hashed", nil)
 	txOrgRepo.On("Create", mock.Anything, mock.Anything).Return(createdOrg, nil)
 	txUserRepo.On("Create", mock.Anything, mock.Anything).Return(createdUser, nil)
-	txMembershipRepo.On("Create", mock.Anything, mock.Anything).Return(createdMembership, nil)
 	issuer.On("IssueToken", mock.Anything, mock.Anything).Return("test-token", nil)
 
 	result, err := uc.Execute(context.Background(), newTestCommand())
@@ -123,9 +116,8 @@ func TestUseCase_Execute_TransactionError(t *testing.T) {
 	orgRepo := new(mocks.OrganizationRepository)
 	txOrgRepo := new(mocks.OrganizationRepository)
 	txUserRepo := new(mocks.UserRepository)
-	txMembershipRepo := new(mocks.MembershipRepository)
 	hasher := new(mocks.PasswordHasher)
-	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo, membershipRepo: txMembershipRepo}
+	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo}
 
 	uc := NewUseCase(orgRepo, txm, nil, hasher, testutil.NewDiscardLogger())
 
@@ -143,18 +135,16 @@ func TestUseCase_Execute_TokenError(t *testing.T) {
 	orgRepo := new(mocks.OrganizationRepository)
 	txOrgRepo := new(mocks.OrganizationRepository)
 	txUserRepo := new(mocks.UserRepository)
-	txMembershipRepo := new(mocks.MembershipRepository)
 	issuer := new(mocks.TokenIssuer)
 	hasher := new(mocks.PasswordHasher)
-	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo, membershipRepo: txMembershipRepo}
+	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo}
 
 	uc := NewUseCase(orgRepo, txm, issuer, hasher, testutil.NewDiscardLogger())
 
 	orgRepo.On("CountAll", mock.Anything).Return(int64(0), nil)
 	hasher.On("Hash", "password123").Return("hashed", nil)
 	txOrgRepo.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewOrganization(), nil)
-	txUserRepo.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewUser(), nil)
-	txMembershipRepo.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewMembership(), nil)
+	txUserRepo.On("Create", mock.Anything, mock.Anything).Return(fixtures.NewUserWithMembership(), nil)
 	issuer.On("IssueToken", mock.Anything, mock.Anything).Return("", errors.New("token error"))
 
 	result, err := uc.Execute(context.Background(), newTestCommand())
@@ -167,10 +157,9 @@ func TestUseCase_Execute_DataCorrectness(t *testing.T) {
 	orgRepo := new(mocks.OrganizationRepository)
 	txOrgRepo := new(mocks.OrganizationRepository)
 	txUserRepo := new(mocks.UserRepository)
-	txMembershipRepo := new(mocks.MembershipRepository)
 	issuer := new(mocks.TokenIssuer)
 	hasher := new(mocks.PasswordHasher)
-	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo, membershipRepo: txMembershipRepo}
+	txm := &mockTxManager{orgRepo: txOrgRepo, userRepo: txUserRepo}
 
 	uc := NewUseCase(orgRepo, txm, issuer, hasher, testutil.NewDiscardLogger())
 
@@ -182,12 +171,8 @@ func TestUseCase_Execute_DataCorrectness(t *testing.T) {
 	})).Return(fixtures.NewOrganization(), nil)
 
 	txUserRepo.On("Create", mock.Anything, mock.MatchedBy(func(u *user.User) bool {
-		return u.Name == "Admin" && u.Email == "admin@example.com" && u.PasswordHash == "hashed" && u.Status == user.StatusActive
-	})).Return(fixtures.NewUser(), nil)
-
-	txMembershipRepo.On("Create", mock.Anything, mock.MatchedBy(func(m *membership.Membership) bool {
-		return m.Role == membership.RoleAdmin && m.Status == membership.StatusActive
-	})).Return(fixtures.NewMembership(), nil)
+		return u.Name == "Admin" && u.Email == "admin@example.com" && u.PasswordHash == "hashed" && u.Status == user.StatusActive && len(u.Memberships) == 1
+	})).Return(fixtures.NewUserWithMembership(), nil)
 
 	issuer.On("IssueToken", mock.Anything, mock.Anything).Return("test-token", nil)
 
@@ -197,5 +182,4 @@ func TestUseCase_Execute_DataCorrectness(t *testing.T) {
 	assert.NotNil(t, result)
 	txOrgRepo.AssertExpectations(t)
 	txUserRepo.AssertExpectations(t)
-	txMembershipRepo.AssertExpectations(t)
 }

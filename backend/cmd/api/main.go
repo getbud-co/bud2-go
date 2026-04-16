@@ -87,7 +87,6 @@ func main() {
 	queries := sqlc.New(pool)
 	orgRepo := postgres.NewOrgRepository(queries)
 	userRepo := postgres.NewUserRepository(queries)
-	membershipRepo := postgres.NewMembershipRepository(queries)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(queries)
 	txManager := postgres.NewTxManager(pool)
 	tokenIssuer := infraauth.NewTokenIssuer(cfg.JWTSecret)
@@ -100,22 +99,24 @@ func main() {
 	listOrg := apporg.NewListUseCase(orgRepo, logger)
 	updateOrg := apporg.NewUpdateUseCase(orgRepo, logger)
 
-	createUser := appuser.NewCreateUseCase(userRepo, membershipRepo, orgRepo, txManager, passwordHasher, logger)
-	getUser := appuser.NewGetUseCase(userRepo, membershipRepo, logger)
-	listUser := appuser.NewListUseCase(userRepo, membershipRepo, logger)
-	updateUser := appuser.NewUpdateUseCase(userRepo, membershipRepo, txManager, logger)
+	createUser := appuser.NewCreateUseCase(userRepo, orgRepo, txManager, passwordHasher, logger)
+	getUser := appuser.NewGetUseCase(userRepo, logger)
+	listUser := appuser.NewListUseCase(userRepo, logger)
+	updateUser := appuser.NewUpdateUseCase(userRepo, txManager, logger)
+	getUserMembership := appuser.NewGetMembershipUseCase(userRepo, logger)
+	updateUserMembership := appuser.NewUpdateMembershipUseCase(txManager, logger)
 
 	bootstrapUC := appbootstrap.NewUseCase(orgRepo, txManager, tokenIssuer, passwordHasher, logger)
-	loginUC := appauth.NewLoginUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, refreshTokenRepo, tokenHasher, logger)
-	getSessionUC := appauth.NewGetSessionUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, logger)
-	switchOrganizationUC := appauth.NewSwitchOrganizationUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, refreshTokenRepo, tokenHasher, logger)
-	refreshUC := appauth.NewRefreshUseCase(userRepo, membershipRepo, orgRepo, tokenIssuer, passwordHasher, refreshTokenRepo, tokenHasher, logger)
+	loginUC := appauth.NewLoginUseCase(userRepo, orgRepo, tokenIssuer, passwordHasher, refreshTokenRepo, tokenHasher, logger)
+	getSessionUC := appauth.NewGetSessionUseCase(userRepo, orgRepo, tokenIssuer, passwordHasher, logger)
+	switchOrganizationUC := appauth.NewSwitchOrganizationUseCase(userRepo, orgRepo, tokenIssuer, passwordHasher, refreshTokenRepo, tokenHasher, logger)
+	refreshUC := appauth.NewRefreshUseCase(userRepo, orgRepo, tokenIssuer, passwordHasher, refreshTokenRepo, tokenHasher, logger)
 
 	// Handlers + Router
 	bootstrapHandler := apibootstrap.NewHandler(bootstrapUC)
 	authHandler := apiauth.NewHandler(loginUC, getSessionUC, switchOrganizationUC, refreshUC)
 	orgHandler := apiorg.NewHandler(createOrg, getOrg, listOrg, updateOrg)
-	userHandler := apiuser.NewHandler(createUser, getUser, listUser, updateUser)
+	userHandler := apiuser.NewHandler(createUser, getUser, listUser, updateUser, getUserMembership, updateUserMembership)
 	router := api.NewRouter(bootstrapHandler, authHandler, orgHandler, userHandler, api.RouterConfig{
 		Env:            cfg.Env,
 		AllowedOrigins: strings.Split(cfg.AllowedOrigins, ","),

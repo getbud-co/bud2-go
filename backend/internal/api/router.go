@@ -95,6 +95,8 @@ func NewRouter(bootstrapHandler BootstrapHandler, authHandler *auth.Handler, org
 			r.With(middleware.RequirePermission(cfg.Enforcer, "users", "read")).Get("/", userHandler.List)
 			r.With(middleware.RequirePermission(cfg.Enforcer, "users", "read")).Get("/{id}", userHandler.Get)
 			r.With(middleware.RequirePermission(cfg.Enforcer, "users", "write")).Put("/{id}", userHandler.Update)
+			r.With(middleware.RequirePermission(cfg.Enforcer, "users", "read")).Get("/{id}/membership", userHandler.GetMembership)
+			r.With(middleware.RequirePermission(cfg.Enforcer, "users", "write")).Put("/{id}/membership", userHandler.UpdateMembership)
 		})
 	})
 
