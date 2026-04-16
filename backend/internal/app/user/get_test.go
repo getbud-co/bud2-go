@@ -1,12 +1,10 @@
 package user
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 
 	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 	usr "github.com/getbud-co/bud2/backend/internal/domain/user"
@@ -17,54 +15,47 @@ import (
 
 func TestGetUseCase_Execute_Success(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
-	uc := NewGetUseCase(users, memberships, testutil.NewDiscardLogger())
+	uc := NewGetUseCase(users, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
-	testUser := fixtures.NewUser()
-	testMembership := fixtures.NewMembership()
+	testUser := fixtures.NewUserWithMembership()
+	testMembership := &testUser.Memberships[0]
+	testMembership.OrganizationID = tenantID.UUID()
 
-	memberships.On("GetByOrganizationAndUser", mock.Anything, tenantID.UUID(), testUser.ID).Return(testMembership, nil)
-	users.On("GetByID", mock.Anything, testUser.ID).Return(testUser, nil)
+	users.On("GetByID", t.Context(), testUser.ID).Return(testUser, nil)
 
-	result, err := uc.Execute(context.Background(), tenantID, testUser.ID)
+	result, err := uc.Execute(t.Context(), tenantID, testUser.ID)
 
 	assert.NoError(t, err)
-	assert.Equal(t, testUser.Email, result.User.Email)
-	assert.Equal(t, testMembership.Role, result.MembershipRole)
+	assert.Equal(t, testUser.Email, result.Email)
 }
 
 func TestGetUseCase_Execute_MembershipNotFound(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
-	uc := NewGetUseCase(users, memberships, testutil.NewDiscardLogger())
+	uc := NewGetUseCase(users, testutil.NewDiscardLogger())
 
 	tenantID := fixtures.NewTestTenantID()
 	userID := uuid.New()
+	testUser := fixtures.NewUser()
+	testUser.ID = userID
 
-	memberships.On("GetByOrganizationAndUser", mock.Anything, tenantID.UUID(), userID).Return(nil, membership.ErrNotFound)
+	users.On("GetByID", t.Context(), userID).Return(testUser, nil)
 
-	result, err := uc.Execute(context.Background(), tenantID, userID)
+	result, err := uc.Execute(t.Context(), tenantID, userID)
 
 	assert.ErrorIs(t, err, membership.ErrNotFound)
 	assert.Nil(t, result)
-	users.AssertNotCalled(t, "GetByID")
 }
 
 func TestGetUseCase_Execute_UserNotFound(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
-	uc := NewGetUseCase(users, memberships, testutil.NewDiscardLogger())
+	uc := NewGetUseCase(users, testutil.NewDiscardLogger())
 
-	tenantID := fixtures.NewTestTenantID()
 	userID := uuid.New()
-	testMembership := fixtures.NewMembership()
-	testMembership.UserID = userID
 
-	memberships.On("GetByOrganizationAndUser", mock.Anything, tenantID.UUID(), userID).Return(testMembership, nil)
-	users.On("GetByID", mock.Anything, userID).Return(nil, usr.ErrNotFound)
+	users.On("GetByID", t.Context(), userID).Return(nil, usr.ErrNotFound)
 
-	result, err := uc.Execute(context.Background(), tenantID, userID)
+	result, err := uc.Execute(t.Context(), fixtures.NewTestTenantID(), userID)
 
 	assert.ErrorIs(t, err, usr.ErrNotFound)
 	assert.Nil(t, result)

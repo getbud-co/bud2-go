@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	domainauth "github.com/getbud-co/bud2/backend/internal/domain/auth"
-	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 	"github.com/getbud-co/bud2/backend/internal/domain/user"
 	"github.com/getbud-co/bud2/backend/internal/test/fixtures"
 	"github.com/getbud-co/bud2/backend/internal/test/mocks"
@@ -19,7 +18,6 @@ import (
 
 func newRefreshUseCase(
 	users *mocks.UserRepository,
-	memberships *mocks.MembershipRepository,
 	organizations *mocks.OrganizationRepository,
 	issuer *mocks.TokenIssuer,
 	hasher *mocks.PasswordHasher,
@@ -27,7 +25,7 @@ func newRefreshUseCase(
 	tokenHasher *mocks.TokenHasher,
 ) *RefreshUseCase {
 	return NewRefreshUseCase(
-		users, memberships, organizations,
+		users, organizations,
 		issuer, hasher,
 		rtRepo, tokenHasher,
 		testutil.NewDiscardLogger(),
@@ -44,35 +42,27 @@ func newRefreshToken(userID uuid.UUID, expiresAt time.Time) *domainauth.RefreshT
 	}
 }
 
-func setupSessionMocks(users *mocks.UserRepository, memberships *mocks.MembershipRepository, organizations *mocks.OrganizationRepository, u *user.User) {
+func setupSessionMocks(users *mocks.UserRepository, organizations *mocks.OrganizationRepository, u *user.User) {
 	users.On("GetByID", mock.Anything, u.ID).Return(u, nil)
-	activeStatus := membership.StatusActive
-	memberships.On("ListByUser", mock.Anything, mock.MatchedBy(func(f membership.ListByUserFilter) bool {
-		return f.UserID == u.ID && f.Status != nil && *f.Status == activeStatus
-	})).Return(membership.ListResult{
-		Memberships: []membership.Membership{*fixtures.NewMembership()},
-		Total:       1,
-	}, nil)
 	organizations.On("GetByID", mock.Anything, mock.Anything).Return(fixtures.NewOrganization(), nil)
 }
 
 func TestRefreshUseCase_Execute_Success(t *testing.T) {
 	users := new(mocks.UserRepository)
-	memberships := new(mocks.MembershipRepository)
 	organizations := new(mocks.OrganizationRepository)
 	issuer := new(mocks.TokenIssuer)
 	hasher := new(mocks.PasswordHasher)
 	rtRepo := new(mocks.RefreshTokenRepository)
 	tokenHasher := new(mocks.TokenHasher)
-	uc := newRefreshUseCase(users, memberships, organizations, issuer, hasher, rtRepo, tokenHasher)
+	uc := newRefreshUseCase(users, organizations, issuer, hasher, rtRepo, tokenHasher)
 
-	u := fixtures.NewUser()
+	u := fixtures.NewUserWithMembership()
 	stored := newRefreshToken(u.ID, time.Now().Add(7*24*time.Hour))
 
 	tokenHasher.On("Hash", "raw-token").Return("hash-abc")
 	rtRepo.On("GetByTokenHash", mock.Anything, "hash-abc").Return(stored, nil)
 	rtRepo.On("RevokeByID", mock.Anything, stored.ID).Return(nil)
-	setupSessionMocks(users, memberships, organizations, u)
+	setupSessionMocks(users, organizations, u)
 	issuer.On("IssueToken", mock.Anything, mock.Anything).Return("new-access-token", nil)
 	rtRepo.On("Create", mock.Anything, mock.Anything).Return(&domainauth.RefreshToken{
 		ID: uuid.New(), UserID: u.ID, TokenHash: "new-hash", ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
@@ -92,7 +82,7 @@ func TestRefreshUseCase_Execute_TokenNotFound(t *testing.T) {
 	rtRepo := new(mocks.RefreshTokenRepository)
 	tokenHasher := new(mocks.TokenHasher)
 	uc := newRefreshUseCase(
-		new(mocks.UserRepository), new(mocks.MembershipRepository), new(mocks.OrganizationRepository),
+		new(mocks.UserRepository), new(mocks.OrganizationRepository),
 		new(mocks.TokenIssuer), new(mocks.PasswordHasher), rtRepo, tokenHasher,
 	)
 
@@ -110,7 +100,7 @@ func TestRefreshUseCase_Execute_TokenRevoked_RevokeAll(t *testing.T) {
 	rtRepo := new(mocks.RefreshTokenRepository)
 	tokenHasher := new(mocks.TokenHasher)
 	uc := newRefreshUseCase(
-		users, new(mocks.MembershipRepository), new(mocks.OrganizationRepository),
+		users, new(mocks.OrganizationRepository),
 		new(mocks.TokenIssuer), new(mocks.PasswordHasher), rtRepo, tokenHasher,
 	)
 
@@ -133,7 +123,7 @@ func TestRefreshUseCase_Execute_TokenExpired(t *testing.T) {
 	rtRepo := new(mocks.RefreshTokenRepository)
 	tokenHasher := new(mocks.TokenHasher)
 	uc := newRefreshUseCase(
-		new(mocks.UserRepository), new(mocks.MembershipRepository), new(mocks.OrganizationRepository),
+		new(mocks.UserRepository), new(mocks.OrganizationRepository),
 		new(mocks.TokenIssuer), new(mocks.PasswordHasher), rtRepo, tokenHasher,
 	)
 
@@ -153,7 +143,7 @@ func TestRefreshUseCase_Execute_InactiveUser(t *testing.T) {
 	rtRepo := new(mocks.RefreshTokenRepository)
 	tokenHasher := new(mocks.TokenHasher)
 	uc := newRefreshUseCase(
-		users, new(mocks.MembershipRepository), new(mocks.OrganizationRepository),
+		users, new(mocks.OrganizationRepository),
 		new(mocks.TokenIssuer), new(mocks.PasswordHasher), rtRepo, tokenHasher,
 	)
 

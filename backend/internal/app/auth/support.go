@@ -24,7 +24,6 @@ type tokenIssuer interface {
 
 type authSupport struct {
 	users            user.Repository
-	memberships      membership.Repository
 	organizations    organization.Repository
 	issuer           tokenIssuer
 	passwordHasher   domainauth.PasswordHasher
@@ -37,7 +36,6 @@ type authSupport struct {
 
 func newAuthSupport(
 	users user.Repository,
-	memberships membership.Repository,
 	organizations organization.Repository,
 	issuer tokenIssuer,
 	passwordHasher domainauth.PasswordHasher,
@@ -49,7 +47,6 @@ func newAuthSupport(
 ) authSupport {
 	return authSupport{
 		users:            users,
-		memberships:      memberships,
 		organizations:    organizations,
 		issuer:           issuer,
 		passwordHasher:   passwordHasher,
@@ -98,18 +95,19 @@ func (s authSupport) loadSession(ctx context.Context, u *user.User) (*Session, e
 		return &Session{User: *u, Organizations: organizations}, nil
 	}
 
-	activeStatus := membership.StatusActive
-	membershipsResult, err := s.memberships.ListByUser(ctx, membership.ListByUserFilter{UserID: u.ID, Status: &activeStatus, Page: 1, Size: 1000})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list memberships: %w", err)
+	activeMemberships := make([]membership.Membership, 0, len(u.Memberships))
+	for i := range u.Memberships {
+		if u.Memberships[i].Status == membership.StatusActive {
+			activeMemberships = append(activeMemberships, u.Memberships[i])
+		}
 	}
-	if len(membershipsResult.Memberships) == 0 {
+	if len(activeMemberships) == 0 {
 		return nil, ErrNoOrganizations
 	}
 
-	organizations = make([]AccessibleOrganization, 0, len(membershipsResult.Memberships))
-	for i := range membershipsResult.Memberships {
-		m := membershipsResult.Memberships[i]
+	organizations = make([]AccessibleOrganization, 0, len(activeMemberships))
+	for i := range activeMemberships {
+		m := activeMemberships[i]
 		org, err := s.organizations.GetByID(ctx, m.OrganizationID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load organization %s: %w", m.OrganizationID, err)

@@ -10,7 +10,6 @@ import (
 
 	"github.com/getbud-co/bud2/backend/internal/domain"
 	domainauth "github.com/getbud-co/bud2/backend/internal/domain/auth"
-	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 	"github.com/getbud-co/bud2/backend/internal/domain/organization"
 	"github.com/getbud-co/bud2/backend/internal/domain/user"
 )
@@ -31,7 +30,6 @@ type SwitchOrganizationUseCase struct {
 
 func NewSwitchOrganizationUseCase(
 	users user.Repository,
-	memberships membership.Repository,
 	organizations organization.Repository,
 	issuer tokenIssuer,
 	passwordHasher domainauth.PasswordHasher,
@@ -40,7 +38,7 @@ func NewSwitchOrganizationUseCase(
 	logger *slog.Logger,
 ) *SwitchOrganizationUseCase {
 	return &SwitchOrganizationUseCase{support: newAuthSupport(
-		users, memberships, organizations,
+		users, organizations,
 		issuer, passwordHasher,
 		refreshTokenRepo, tokenHasher,
 		logger,

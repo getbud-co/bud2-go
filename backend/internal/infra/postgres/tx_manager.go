@@ -7,7 +7,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	apptx "github.com/getbud-co/bud2/backend/internal/app/tx"
-	"github.com/getbud-co/bud2/backend/internal/domain/membership"
 	"github.com/getbud-co/bud2/backend/internal/domain/organization"
 	"github.com/getbud-co/bud2/backend/internal/domain/user"
 	"github.com/getbud-co/bud2/backend/internal/infra/postgres/sqlc"
@@ -23,10 +22,6 @@ func (r txRepositories) Organizations() organization.Repository {
 
 func (r txRepositories) Users() user.Repository {
 	return NewUserRepository(r.queries)
-}
-
-func (r txRepositories) Memberships() membership.Repository {
-	return NewMembershipRepository(r.queries)
 }
 
 type TxManager struct {
